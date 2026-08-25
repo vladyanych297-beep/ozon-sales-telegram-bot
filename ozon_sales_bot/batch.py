@@ -8,7 +8,7 @@ from aiogram.methods import GetUpdates
 
 from .bot import SalesBotApp
 from .config import Settings
-from .keyboards import persistent_menu_keyboard
+from .keyboards import persistent_menu_keyboard, selector_link_keyboard
 
 
 logger = logging.getLogger(__name__)
@@ -32,6 +32,14 @@ async def run_once() -> int:
                 reply_markup=persistent_menu_keyboard(),
             )
             app.storage.set_state("menu_keyboard_version", "1")
+        if app.storage.get_state("selector_link_version") != "1":
+            await bot.send_message(
+                app.settings.allowed_telegram_group_id,
+                "Теперь период и номенклатуры можно выбрать без ожидания ответов бота. "
+                "После выбора отправьте в группу один готовый запрос.",
+                reply_markup=selector_link_keyboard(),
+            )
+            app.storage.set_state("selector_link_version", "1")
         offset = app.storage.get_update_offset()
 
         while True:
