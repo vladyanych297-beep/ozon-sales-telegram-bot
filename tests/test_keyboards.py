@@ -21,4 +21,6 @@ def test_selector_url_is_available_in_both_menus():
     menu = main_menu(UserPreferences())
     assert menu.inline_keyboard[0][0].url == SELECTOR_URL
     assert menu.inline_keyboard[1][0].callback_data == "report"
-    assert "30 дней" in menu.inline_keyboard[1][0].text
+    assert menu.inline_keyboard[2][0].callback_data == "period:menu"
+    assert "30 дней" in menu.inline_keyboard[2][0].text
+    assert menu.inline_keyboard[2][1].callback_data == "products:0"

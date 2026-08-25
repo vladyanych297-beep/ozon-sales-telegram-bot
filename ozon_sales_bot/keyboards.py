@@ -39,7 +39,8 @@ def selector_link_keyboard() -> InlineKeyboardMarkup:
     )
 
 
-def main_menu(_preferences: UserPreferences) -> InlineKeyboardMarkup:
+def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
+    products_label = "Все" if preferences.all_products else str(len(preferences.selected_skus or ()))
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -50,9 +51,19 @@ def main_menu(_preferences: UserPreferences) -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text="📊 Все товары за 30 дней",
+                    text="📊 Получить заказы",
                     callback_data="report",
                 )
+            ],
+            [
+                InlineKeyboardButton(
+                    text=f"📅 Период: {preferences.period_days} дней",
+                    callback_data="period:menu",
+                ),
+                InlineKeyboardButton(
+                    text=f"📦 Товары: {products_label}",
+                    callback_data="products:0",
+                ),
             ],
         ]
     )

@@ -75,9 +75,9 @@ class SalesBotApp:
             return
         preferences = self.storage.get(message.from_user.id)
         await message.answer(
-            "Выберите действие: настройте отчёт на отдельной странице или получите "
-            "быстрый отчёт по всем товарам за последние 30 дней. Отменённые "
-            "отправления не учитываются.",
+            "Выберите период и номенклатуры или получите отчёт с текущими "
+            "настройками. По умолчанию выбраны все товары за последние 30 дней. "
+            "Отменённые отправления не учитываются.",
             reply_markup=main_menu(preferences),
         )
 
@@ -170,12 +170,12 @@ class SalesBotApp:
         if await self._deny_callback(callback):
             return
         await callback.answer("Формирую отчёт…")
-        await self._send_report_for_request(callback.message, SalesRequest(30, None))
+        await self._send_saved_report(callback.message, callback.from_user.id)
 
     async def send_report_command(self, message: Message) -> None:
         if await self._deny_message(message):
             return
-        await self._send_report_for_request(message, SalesRequest(30, None))
+        await self._send_saved_report(message, message.from_user.id)
 
     async def send_local_request(self, message: Message) -> None:
         if await self._deny_message(message):
@@ -186,6 +186,13 @@ class SalesBotApp:
             await message.answer(f"Не удалось прочитать запрос: {exc}.")
             return
         await self._send_report_for_request(message, request)
+
+    async def _send_saved_report(self, message: Message, user_id: int) -> None:
+        preferences = self.storage.get(user_id)
+        await self._send_report_for_request(
+            message,
+            SalesRequest(preferences.period_days, preferences.selected_skus),
+        )
 
     async def _send_report_for_request(
         self, message: Message, request: SalesRequest
