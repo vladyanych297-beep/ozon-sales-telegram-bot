@@ -227,6 +227,7 @@ class SalesBotApp:
         dispatcher = Dispatcher()
         dispatcher.include_router(self.router)
         try:
+            await bot.delete_webhook(drop_pending_updates=False)
             await dispatcher.start_polling(bot)
         finally:
             await self.ozon.close()
