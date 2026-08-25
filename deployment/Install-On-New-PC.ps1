@@ -40,9 +40,18 @@ function Set-YamlScalar {
 
 function Get-PythonLauncher {
     $launcher = Get-Command py.exe -ErrorAction SilentlyContinue
-    if ($launcher) { return $launcher.Source }
+    if ($launcher -and $launcher.Source -notlike '*\WindowsApps\*') { return $launcher.Source }
+
+    $knownPythonPaths = @(
+        (Join-Path $env:LOCALAPPDATA 'Programs\Python\Python312\python.exe'),
+        (Join-Path $env:ProgramFiles 'Python312\python.exe')
+    )
+    foreach ($knownPythonPath in $knownPythonPaths) {
+        if (Test-Path -LiteralPath $knownPythonPath) { return $knownPythonPath }
+    }
+
     $python = Get-Command python.exe -ErrorAction SilentlyContinue
-    if ($python) { return $python.Source }
+    if ($python -and $python.Source -notlike '*\WindowsApps\*') { return $python.Source }
     return $null
 }
 
