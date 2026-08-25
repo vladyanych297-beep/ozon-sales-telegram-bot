@@ -58,8 +58,14 @@ if (-not (Test-Path -LiteralPath $vpnExecutable)) {
 if (-not (Test-Path -LiteralPath $vpnUserConfig)) {
     throw 'The AvoVPN profile is not configured. Configure it, exit AvoVPN, and run the installer again.'
 }
-if (Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue) {
-    throw 'Exit AvoVPN completely and run the installer again.'
+$runningVpn = Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue
+if ($runningVpn) {
+    Write-Host 'AvoVPN is still running in the background. Closing it before setup.'
+    $runningVpn | Stop-Process -Force
+    $runningVpn | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
+    if (Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue) {
+        throw 'AvoVPN could not be closed automatically. Restart Windows and run the installer again.'
+    }
 }
 
 $resolvedDestination = [IO.Path]::GetFullPath($Destination)
