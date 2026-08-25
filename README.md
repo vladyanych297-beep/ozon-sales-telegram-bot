@@ -51,20 +51,22 @@ Copy-Item .env.example .env
 ответ может прийти с задержкой примерно до 5 минут, а при задержке очереди GitHub —
 позже.
 
-В разделе репозитория `Settings → Secrets and variables → Actions` создайте четыре
-секрета:
+В разделе репозитория `Settings → Secrets and variables → Actions` создайте пять
+секретов:
 
 - `TELEGRAM_BOT_TOKEN`;
 - `OZON_CLIENT_ID`;
 - `OZON_API_KEY`;
-- `ALLOWED_TELEGRAM_GROUP_ID`.
+- `ALLOWED_TELEGRAM_GROUP_ID`;
+- `STATE_ENCRYPTION_KEY` — случайный ключ шифрования служебной базы.
 
 Workflow находится в `.github/workflows/telegram-bot.yml`. Его также можно запустить
 вручную кнопкой `Run workflow` в разделе Actions.
 
 Позиция очереди Telegram и пользовательские настройки хранятся в SQLite в отдельной
-служебной ветке `bot-state`. Workflow обновляет эту ветку после каждого успешного
-запуска. Одновременные запуски запрещены настройкой `concurrency`.
+служебной ветке `bot-state`. База зашифрована AES-256; ключ хранится только в секрете
+`STATE_ENCRYPTION_KEY`. Workflow обновляет эту ветку после каждого успешного запуска.
+Одновременные запуски запрещены настройкой `concurrency`.
 
 GitHub Actions не предоставляет входящий HTTPS endpoint, поэтому бот использует
 `getUpdates`, а не webhook.

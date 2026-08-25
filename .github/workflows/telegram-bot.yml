@@ -33,10 +33,20 @@ jobs:
 
       - name: Restore bot state
         shell: bash
+        env:
+          STATE_ENCRYPTION_KEY: ${{ secrets.STATE_ENCRYPTION_KEY }}
         run: |
+          set -euo pipefail
           mkdir -p data
           git fetch origin bot-state:refs/remotes/origin/bot-state 2>/dev/null || true
-          git show origin/bot-state:bot.sqlite3 > data/bot.sqlite3 2>/dev/null || true
+          if git show origin/bot-state:bot.sqlite3.enc > "${RUNNER_TEMP}/bot.sqlite3.enc" 2>/dev/null; then
+            openssl enc -d -aes-256-cbc -pbkdf2 \
+              -in "${RUNNER_TEMP}/bot.sqlite3.enc" \
+              -out data/bot.sqlite3 \
+              -pass env:STATE_ENCRYPTION_KEY
+          else
+            git show origin/bot-state:bot.sqlite3 > data/bot.sqlite3 2>/dev/null || true
+          fi
 
       - name: Process pending Telegram messages
         env:
@@ -50,12 +60,18 @@ jobs:
 
       - name: Save bot state
         shell: bash
+        env:
+          STATE_ENCRYPTION_KEY: ${{ secrets.STATE_ENCRYPTION_KEY }}
         run: |
-          cp data/bot.sqlite3 "${RUNNER_TEMP}/bot.sqlite3"
+          set -euo pipefail
+          openssl enc -aes-256-cbc -salt -pbkdf2 \
+            -in data/bot.sqlite3 \
+            -out "${RUNNER_TEMP}/bot.sqlite3.enc" \
+            -pass env:STATE_ENCRYPTION_KEY
           git switch --orphan bot-state-next
           git rm -rf --ignore-unmatch .
-          cp "${RUNNER_TEMP}/bot.sqlite3" bot.sqlite3
-          git add bot.sqlite3
+          cp "${RUNNER_TEMP}/bot.sqlite3.enc" bot.sqlite3.enc
+          git add bot.sqlite3.enc
           git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
             commit -m "Update bot state"
           git push --force origin HEAD:bot-state
