@@ -8,6 +8,7 @@ from aiogram.methods import GetUpdates
 
 from .bot import SalesBotApp
 from .config import Settings
+from .keyboards import persistent_menu_keyboard
 
 
 logger = logging.getLogger(__name__)
@@ -24,6 +25,13 @@ async def run_once() -> int:
     try:
         # Telegram does not allow getUpdates while a webhook is configured.
         await bot.delete_webhook(drop_pending_updates=False)
+        if app.storage.get_state("menu_keyboard_version") != "1":
+            await bot.send_message(
+                app.settings.allowed_telegram_group_id,
+                "Кнопка меню добавлена. Используйте её для настройки и получения отчёта.",
+                reply_markup=persistent_menu_keyboard(),
+            )
+            app.storage.set_state("menu_keyboard_version", "1")
         offset = app.storage.get_update_offset()
 
         while True:

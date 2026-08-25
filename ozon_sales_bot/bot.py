@@ -13,7 +13,7 @@ from aiogram.types import CallbackQuery, Message
 
 from .config import Settings
 from .formatting import format_report
-from .keyboards import main_menu, period_menu, products_menu
+from .keyboards import MENU_BUTTON_TEXT, main_menu, period_menu, products_menu
 from .ozon import OzonApiError, OzonClient
 from .storage import PreferencesStorage
 
@@ -196,6 +196,7 @@ class SalesBotApp:
     def _register_handlers(self) -> None:
         self.router.message.register(self.show_menu_message, CommandStart())
         self.router.message.register(self.show_menu_message, Command("menu"))
+        self.router.message.register(self.show_menu_message, F.text == MENU_BUTTON_TEXT)
         self.router.message.register(self.send_report_command, Command("sales"))
         self.router.callback_query.register(self.show_menu_callback, F.data == "menu")
         self.router.callback_query.register(self.show_periods, F.data == "period:menu")

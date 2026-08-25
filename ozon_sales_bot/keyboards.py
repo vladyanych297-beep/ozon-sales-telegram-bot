@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from aiogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from aiogram.types import (
+    InlineKeyboardButton,
+    InlineKeyboardMarkup,
+    KeyboardButton,
+    ReplyKeyboardMarkup,
+)
 from aiogram.utils.keyboard import InlineKeyboardBuilder
 
 from .models import SaleRow, UserPreferences
@@ -8,6 +13,16 @@ from .models import SaleRow, UserPreferences
 
 PERIODS = (7, 14, 30, 60, 90)
 PAGE_SIZE = 8
+MENU_BUTTON_TEXT = "📋 Меню"
+
+
+def persistent_menu_keyboard() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[[KeyboardButton(text=MENU_BUTTON_TEXT)]],
+        resize_keyboard=True,
+        is_persistent=True,
+        input_field_placeholder="Нажмите «Меню» для выбора отчёта",
+    )
 
 
 def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:

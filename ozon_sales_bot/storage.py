@@ -34,20 +34,27 @@ class PreferencesStorage:
             )
 
     def get_update_offset(self) -> int | None:
-        with self._connect() as connection:
-            row = connection.execute(
-                "SELECT value FROM bot_state WHERE key = 'telegram_update_offset'"
-            ).fetchone()
-        return None if row is None else int(row[0])
+        value = self.get_state("telegram_update_offset")
+        return None if value is None else int(value)
 
     def set_update_offset(self, offset: int) -> None:
+        self.set_state("telegram_update_offset", str(offset))
+
+    def get_state(self, key: str) -> str | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM bot_state WHERE key = ?", (key,)
+            ).fetchone()
+        return None if row is None else str(row[0])
+
+    def set_state(self, key: str, value: str) -> None:
         with self._connect() as connection:
             connection.execute(
                 """
-                INSERT INTO bot_state (key, value) VALUES ('telegram_update_offset', ?)
+                INSERT INTO bot_state (key, value) VALUES (?, ?)
                 ON CONFLICT(key) DO UPDATE SET value = excluded.value
                 """,
-                (str(offset),),
+                (key, value),
             )
 
     def get(self, user_id: int) -> UserPreferences:

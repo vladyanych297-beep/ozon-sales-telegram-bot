@@ -32,3 +32,7 @@ def test_update_offset(tmp_path: Path):
 
     storage.set_update_offset(456)
     assert storage.get_update_offset() == 456
+
+    assert storage.get_state("menu_keyboard_version") is None
+    storage.set_state("menu_keyboard_version", "1")
+    assert storage.get_state("menu_keyboard_version") == "1"
