@@ -102,7 +102,7 @@ function encodeRequest() {
   return btoa(binary).replaceAll("+", "-").replaceAll("/", "_").replaceAll("=", "");
 }
 
-async function sendRequest() {
+function sendRequest() {
   elements.notice.textContent = "";
   const request = `#ozon_sales ${encodeRequest()}`;
   if (request.length > 3500) {
@@ -111,18 +111,10 @@ async function sendRequest() {
   }
 
   saveState();
-  if (navigator.share) {
-    try {
-      await navigator.share({ text: request });
-      return;
-    } catch (error) {
-      if (error.name === "AbortError") return;
-    }
-  }
   const shareUrl = new URL("https://t.me/share/url");
   shareUrl.searchParams.set("url", window.location.href);
   shareUrl.searchParams.set("text", request);
-  window.location.href = shareUrl.toString();
+  window.location.assign(shareUrl.toString());
 }
 
 async function loadCatalog() {
