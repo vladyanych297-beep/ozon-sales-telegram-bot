@@ -9,6 +9,17 @@ $vpnExecutable = 'C:\Program Files\avoVPN\avoVPN.exe'
 $pythonExecutable = Join-Path $AppDirectory '.venv\Scripts\python.exe'
 $logsDirectory = Join-Path $AppDirectory 'logs'
 $launcherLog = Join-Path $logsDirectory 'launcher.log'
+$script:lastVpnProcessId = $null
+
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+
+public static class NativeWindow {
+    [DllImport("user32.dll")]
+    public static extern bool ShowWindowAsync(IntPtr hWnd, int nCmdShow);
+}
+'@
 
 New-Item -ItemType Directory -Path $logsDirectory -Force | Out-Null
 
@@ -35,9 +46,32 @@ function Test-TcpEndpoint {
 }
 
 function Ensure-VpnStarted {
-    if (-not (Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue)) {
+    $vpnProcess = Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue | Select-Object -First 1
+    if (-not $vpnProcess) {
         Write-LauncherLog 'Starting AvoVPN.'
-        Start-Process -FilePath $vpnExecutable -WindowStyle Hidden
+        $vpnProcess = Start-Process -FilePath $vpnExecutable -WindowStyle Hidden -PassThru
+    }
+
+    if ($script:lastVpnProcessId -ne $vpnProcess.Id) {
+        $script:lastVpnProcessId = $vpnProcess.Id
+        $deadline = (Get-Date).AddSeconds(30)
+        do {
+            try {
+                $vpnProcess.Refresh()
+                if ($vpnProcess.HasExited) {
+                    break
+                }
+                if ($vpnProcess.MainWindowHandle -ne 0) {
+                    [NativeWindow]::ShowWindowAsync($vpnProcess.MainWindowHandle, 0) | Out-Null
+                    Write-LauncherLog 'AvoVPN window was hidden; the tray icon remains available.'
+                    break
+                }
+            }
+            catch {
+                break
+            }
+            Start-Sleep -Milliseconds 500
+        } while ((Get-Date) -lt $deadline)
     }
 }
 
