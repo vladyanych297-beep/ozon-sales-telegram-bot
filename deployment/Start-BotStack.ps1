@@ -36,20 +36,20 @@ function Test-TcpEndpoint {
 
 function Ensure-VpnStarted {
     if (-not (Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue)) {
-        Write-LauncherLog 'Запускаю AvoVPN.'
+        Write-LauncherLog 'Starting AvoVPN.'
         Start-Process -FilePath $vpnExecutable -WindowStyle Hidden
     }
 }
 
 function Wait-ForVpn {
-    Write-LauncherLog 'Ожидаю подключение AvoVPN и доступность API.'
+    Write-LauncherLog 'Waiting for AvoVPN and API connectivity.'
     while ($true) {
         Ensure-VpnStarted
         $kernelRunning = [bool](Get-Process -Name 'sing-box' -ErrorAction SilentlyContinue)
         $telegramAvailable = $kernelRunning -and (Test-TcpEndpoint -HostName 'api.telegram.org')
         $ozonAvailable = $kernelRunning -and (Test-TcpEndpoint -HostName 'api-seller.ozon.ru')
         if ($telegramAvailable -and $ozonAvailable) {
-            Write-LauncherLog 'VPN подключён, Telegram и Ozon доступны.'
+            Write-LauncherLog 'VPN is connected; Telegram and Ozon are reachable.'
             return
         }
         Start-Sleep -Seconds 5
@@ -57,15 +57,15 @@ function Wait-ForVpn {
 }
 
 if (-not (Test-Path -LiteralPath $vpnExecutable)) {
-    Write-LauncherLog "AvoVPN не найден: $vpnExecutable"
+    Write-LauncherLog "AvoVPN was not found: $vpnExecutable"
     exit 10
 }
 if (-not (Test-Path -LiteralPath $pythonExecutable)) {
-    Write-LauncherLog "Python бота не найден: $pythonExecutable"
+    Write-LauncherLog "Bot Python was not found: $pythonExecutable"
     exit 11
 }
 if (-not (Test-Path -LiteralPath (Join-Path $AppDirectory '.env'))) {
-    Write-LauncherLog 'Файл .env не найден.'
+    Write-LauncherLog 'The .env file was not found.'
     exit 12
 }
 
@@ -77,20 +77,20 @@ while ($true) {
     } | Select-Object -First 1
 
     if ($existingBot) {
-        Write-LauncherLog "Бот уже работает, PID $($existingBot.ProcessId)."
+        Write-LauncherLog "The bot is already running, PID $($existingBot.ProcessId)."
         while (Get-Process -Id $existingBot.ProcessId -ErrorAction SilentlyContinue) {
             Ensure-VpnStarted
             Start-Sleep -Seconds 15
         }
-        Write-LauncherLog 'Обнаружена остановка существующего бота.'
+        Write-LauncherLog 'The existing bot process stopped.'
     } else {
         $stamp = Get-Date -Format 'yyyyMMdd-HHmmss'
         $stdoutLog = Join-Path $logsDirectory "bot-$stamp.out.log"
         $stderrLog = Join-Path $logsDirectory "bot-$stamp.err.log"
-        Write-LauncherLog 'Запускаю Telegram-бота.'
+        Write-LauncherLog 'Starting the Telegram bot.'
         $bot = Start-Process -FilePath $pythonExecutable -ArgumentList '-m', 'ozon_sales_bot.bot' -WorkingDirectory $AppDirectory -WindowStyle Hidden -RedirectStandardOutput $stdoutLog -RedirectStandardError $stderrLog -PassThru
         $bot.WaitForExit()
-        Write-LauncherLog "Бот завершился с кодом $($bot.ExitCode). Повторный запуск через 10 секунд."
+        Write-LauncherLog "The bot exited with code $($bot.ExitCode). Restarting in 10 seconds."
     }
 
     Start-Sleep -Seconds 10

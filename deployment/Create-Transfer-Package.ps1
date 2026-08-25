@@ -12,7 +12,7 @@ $packageRoot = Join-Path $temporaryRoot 'ozon-sales-bot-transfer'
 $appRoot = Join-Path $packageRoot 'app'
 
 if ($IncludeSecrets -and -not (Test-Path -LiteralPath $environmentFile)) {
-    throw 'Файл .env не найден. Нельзя собрать готовый пакет с настройками.'
+    throw 'The .env file was not found. A configured package cannot be created.'
 }
 
 try {
@@ -34,8 +34,8 @@ try {
     if ($IncludeSecrets) {
         Copy-Item -LiteralPath $environmentFile -Destination (Join-Path $appRoot '.env')
         Set-Content -LiteralPath (Join-Path $packageRoot 'PACKAGE-CONTAINS-SECRETS.txt') -Value @(
-            'В архив включён файл .env с токенами Telegram и Ozon.'
-            'Храните архив как пароль и удалите его после установки.'
+            'The archive contains .env with Telegram and Ozon tokens.'
+            'Protect the archive like a password and delete it after installation.'
         ) -Encoding utf8
     }
 
@@ -47,11 +47,11 @@ try {
     }
     Compress-Archive -LiteralPath $packageRoot -DestinationPath $resolvedOutput -CompressionLevel Optimal
 
-    Write-Host "Пакет создан: $resolvedOutput"
+    Write-Host "Package created: $resolvedOutput"
     if (-not $IncludeSecrets) {
-        Write-Warning 'Секреты не включены. Перед установкой положите заполненный .env в папку app пакета.'
+        Write-Warning 'Secrets are not included. Put the configured .env file in the package app directory before installation.'
     } else {
-        Write-Warning 'Архив содержит секреты. Передавайте его безопасно и удалите после установки.'
+        Write-Warning 'The archive contains secrets. Transfer it securely and delete it after installation.'
     }
 }
 finally {
