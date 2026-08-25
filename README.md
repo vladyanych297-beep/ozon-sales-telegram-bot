@@ -44,27 +44,40 @@ Copy-Item .env.example .env
 Файл `.env` исключён из Git. Пользовательские настройки сохраняются в
 `data/bot.sqlite3`, который также исключён из Git.
 
-## Запуск
+## Запуск через GitHub Actions
+
+Основной режим работы — короткий запуск GitHub Actions раз в 5 минут. Каждый запуск
+забирает накопившиеся обновления Telegram, обрабатывает их и завершается. Поэтому
+ответ может прийти с задержкой примерно до 5 минут, а при задержке очереди GitHub —
+позже.
+
+В разделе репозитория `Settings → Secrets and variables → Actions` создайте четыре
+секрета:
+
+- `TELEGRAM_BOT_TOKEN`;
+- `OZON_CLIENT_ID`;
+- `OZON_API_KEY`;
+- `ALLOWED_TELEGRAM_GROUP_ID`.
+
+Workflow находится в `.github/workflows/telegram-bot.yml`. Его также можно запустить
+вручную кнопкой `Run workflow` в разделе Actions.
+
+Позиция очереди Telegram и пользовательские настройки хранятся в SQLite в отдельной
+служебной ветке `bot-state`. Workflow обновляет эту ветку после каждого успешного
+запуска. Одновременные запуски запрещены настройкой `concurrency`.
+
+GitHub Actions не предоставляет входящий HTTPS endpoint, поэтому бот использует
+`getUpdates`, а не webhook.
+
+## Локальный запуск
 
 ```powershell
 python -m ozon_sales_bot.bot
 ```
 
-Это локальный режим с long polling. Для серверного запуска по входящим запросам
-используется webhook:
-
-```powershell
-python -m ozon_sales_bot.webhook
-```
-
-Webhook-режим поднимает HTTP-сервер на порту из переменной `PORT`, регистрирует у
-Telegram адрес `/telegram/webhook` и проверяет заголовок секретным значением
-`TELEGRAM_WEBHOOK_SECRET`. Базовый HTTPS-адрес берётся из `WEBHOOK_BASE_URL` или
-автоматически из `RAILWAY_PUBLIC_DOMAIN`.
-
-Для Railway подключите постоянный volume к `/data` и задайте
-`DATABASE_PATH=/data/bot.sqlite3`, чтобы настройки пользователей сохранялись после
-перезапусков и новых развёртываний. Файл `railway.json` уже содержит команду запуска.
+Это режим long polling для разработки и проверки на компьютере. Не запускайте его
+одновременно с GitHub Actions: Telegram распределит обновления между двумя
+получателями непредсказуемо.
 
 Команды:
 

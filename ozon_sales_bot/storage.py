@@ -24,6 +24,31 @@ class PreferencesStorage:
                 )
                 """
             )
+            connection.execute(
+                """
+                CREATE TABLE IF NOT EXISTS bot_state (
+                    key TEXT PRIMARY KEY,
+                    value TEXT NOT NULL
+                )
+                """
+            )
+
+    def get_update_offset(self) -> int | None:
+        with self._connect() as connection:
+            row = connection.execute(
+                "SELECT value FROM bot_state WHERE key = 'telegram_update_offset'"
+            ).fetchone()
+        return None if row is None else int(row[0])
+
+    def set_update_offset(self, offset: int) -> None:
+        with self._connect() as connection:
+            connection.execute(
+                """
+                INSERT INTO bot_state (key, value) VALUES ('telegram_update_offset', ?)
+                ON CONFLICT(key) DO UPDATE SET value = excluded.value
+                """,
+                (str(offset),),
+            )
 
     def get(self, user_id: int) -> UserPreferences:
         with self._connect() as connection:
@@ -94,4 +119,3 @@ class PreferencesStorage:
 
     def _connect(self) -> sqlite3.Connection:
         return sqlite3.connect(self.path)
-

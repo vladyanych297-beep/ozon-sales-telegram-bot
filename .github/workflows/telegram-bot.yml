@@ -1,0 +1,61 @@
+name: Telegram bot
+
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: telegram-bot
+  cancel-in-progress: false
+
+jobs:
+  process-updates:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check out bot code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Restore bot state
+        shell: bash
+        run: |
+          mkdir -p data
+          git fetch origin bot-state:refs/remotes/origin/bot-state 2>/dev/null || true
+          git show origin/bot-state:bot.sqlite3 > data/bot.sqlite3 2>/dev/null || true
+
+      - name: Process pending Telegram messages
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OZON_CLIENT_ID: ${{ secrets.OZON_CLIENT_ID }}
+          OZON_API_KEY: ${{ secrets.OZON_API_KEY }}
+          ALLOWED_TELEGRAM_GROUP_ID: ${{ secrets.ALLOWED_TELEGRAM_GROUP_ID }}
+          REPORT_TIMEZONE: Europe/Moscow
+          DATABASE_PATH: data/bot.sqlite3
+        run: python -m ozon_sales_bot.batch
+
+      - name: Save bot state
+        shell: bash
+        run: |
+          cp data/bot.sqlite3 "${RUNNER_TEMP}/bot.sqlite3"
+          git switch --orphan bot-state-next
+          git rm -rf --ignore-unmatch .
+          cp "${RUNNER_TEMP}/bot.sqlite3" bot.sqlite3
+          git add bot.sqlite3
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -m "Update bot state"
+          git push --force origin HEAD:bot-state

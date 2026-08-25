@@ -20,3 +20,15 @@ def test_preferences_defaults_and_persistence(tmp_path: Path):
     storage.set_all_products(42)
     assert storage.get(42).all_products
 
+
+def test_update_offset(tmp_path: Path):
+    storage = PreferencesStorage(tmp_path / "bot.sqlite3")
+    storage.initialize()
+
+    assert storage.get_update_offset() is None
+
+    storage.set_update_offset(123)
+    assert storage.get_update_offset() == 123
+
+    storage.set_update_offset(456)
+    assert storage.get_update_offset() == 456

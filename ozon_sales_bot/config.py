@@ -17,8 +17,6 @@ class Settings:
     ozon_api_base_url: str
     report_timezone: ZoneInfo
     allowed_telegram_group_id: int
-    webhook_base_url: str | None
-    webhook_secret: str | None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -56,6 +54,4 @@ class Settings:
             ).rstrip("/"),
             report_timezone=timezone,
             allowed_telegram_group_id=allowed_group_id,
-            webhook_base_url=(os.getenv("WEBHOOK_BASE_URL", "").strip().rstrip("/") or None),
-            webhook_secret=(os.getenv("TELEGRAM_WEBHOOK_SECRET", "").strip() or None),
         )
