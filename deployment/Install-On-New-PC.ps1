@@ -67,16 +67,6 @@ if (-not (Test-Path -LiteralPath $vpnExecutable)) {
 if (-not (Test-Path -LiteralPath $vpnUserConfig)) {
     throw 'The AvoVPN profile is not configured. Configure it, exit AvoVPN, and run the installer again.'
 }
-$runningVpn = Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue
-if ($runningVpn) {
-    Write-Host 'AvoVPN is still running in the background. Closing it before setup.'
-    $runningVpn | Stop-Process -Force
-    $runningVpn | Wait-Process -Timeout 10 -ErrorAction SilentlyContinue
-    if (Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue) {
-        throw 'AvoVPN could not be closed automatically. Restart Windows and run the installer again.'
-    }
-}
-
 $resolvedDestination = [IO.Path]::GetFullPath($Destination)
 if (Test-Path -LiteralPath $resolvedDestination) {
     if (-not $Force) {
@@ -96,8 +86,13 @@ Set-YamlScalar -Path $vpnUserConfig -Name 'autoStartKernel' -Value 'true'
 Set-YamlScalar -Path $vpnBuildConfig -Name 'starthidden' -Value 'true'
 Write-Utf8NoBom -Path $vpnAutostartFlag -Value 'true'
 
-Start-Process -FilePath $vpnExecutable -WindowStyle Hidden
-Write-Host 'AvoVPN started. Waiting for the VPN connection.'
+$runningVpn = Get-Process -Name 'avoVPN' -ErrorAction SilentlyContinue
+if ($runningVpn) {
+    Write-Host 'AvoVPN is already running. Waiting for the VPN connection.'
+} else {
+    Start-Process -FilePath $vpnExecutable -WindowStyle Hidden
+    Write-Host 'AvoVPN started. Waiting for the VPN connection.'
+}
 
 $deadline = (Get-Date).AddMinutes(5)
 do {
