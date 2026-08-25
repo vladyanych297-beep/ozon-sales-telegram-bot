@@ -14,7 +14,6 @@ from .models import SaleRow, UserPreferences
 PERIODS = (7, 14, 30, 60, 90)
 PAGE_SIZE = 8
 MENU_BUTTON_TEXT = "📋 Меню"
-SELECTOR_URL = "https://vladyanych297-beep.github.io/ozon-sales-telegram-bot/"
 
 
 def persistent_menu_keyboard() -> ReplyKeyboardMarkup:
@@ -26,29 +25,10 @@ def persistent_menu_keyboard() -> ReplyKeyboardMarkup:
     )
 
 
-def selector_link_keyboard() -> InlineKeyboardMarkup:
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="⚙️ Выбрать период и товары",
-                    url=SELECTOR_URL,
-                )
-            ]
-        ]
-    )
-
-
 def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
     products_label = "Все" if preferences.all_products else str(len(preferences.selected_skus or ()))
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [
-                InlineKeyboardButton(
-                    text="⚙️ Выбрать период и товары",
-                    url=SELECTOR_URL,
-                )
-            ],
             [
                 InlineKeyboardButton(
                     text="📊 Получить заказы",
