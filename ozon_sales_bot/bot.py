@@ -15,6 +15,7 @@ from .config import Settings
 from .formatting import format_report
 from .keyboards import MENU_BUTTON_TEXT, main_menu, period_menu, products_menu
 from .ozon import OzonApiError, OzonClient
+from .request import SalesRequest, parse_sales_request
 from .storage import PreferencesStorage
 
 
@@ -175,12 +176,30 @@ class SalesBotApp:
             return
         await self._send_report(message, message.from_user.id)
 
+    async def send_local_request(self, message: Message) -> None:
+        if await self._deny_message(message):
+            return
+        try:
+            request = parse_sales_request(message.text or "")
+        except ValueError as exc:
+            await message.answer(f"Не удалось прочитать запрос: {exc}.")
+            return
+        await self._send_report_for_request(message, request)
+
     async def _send_report(self, message: Message, user_id: int) -> None:
         preferences = self.storage.get(user_id)
-        date_from, date_to = self._dates(preferences.period_days)
+        await self._send_report_for_request(
+            message,
+            SalesRequest(preferences.period_days, preferences.selected_skus),
+        )
+
+    async def _send_report_for_request(
+        self, message: Message, request: SalesRequest
+    ) -> None:
+        date_from, date_to = self._dates(request.period_days)
         status = await message.answer("Получаю данные из Ozon…")
         try:
-            rows = await self.ozon.get_sales(date_from, date_to, preferences.selected_skus)
+            rows = await self.ozon.get_sales(date_from, date_to, request.selected_skus)
         except OzonApiError as exc:
             logger.exception("Could not build Ozon sales report")
             await status.edit_text(str(exc))
@@ -198,6 +217,7 @@ class SalesBotApp:
         self.router.message.register(self.show_menu_message, Command("menu"))
         self.router.message.register(self.show_menu_message, F.text == MENU_BUTTON_TEXT)
         self.router.message.register(self.send_report_command, Command("sales"))
+        self.router.message.register(self.send_local_request, F.text.contains("#ozon_sales"))
         self.router.callback_query.register(self.show_menu_callback, F.data == "menu")
         self.router.callback_query.register(self.show_periods, F.data == "period:menu")
         self.router.callback_query.register(self.set_period, F.data.startswith("period:set:"))

@@ -1,0 +1,43 @@
+name: Update product catalog
+
+on:
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: product-catalog
+  cancel-in-progress: false
+
+jobs:
+  update-catalog:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+      - name: Load products from Ozon
+        env:
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          OZON_CLIENT_ID: ${{ secrets.OZON_CLIENT_ID }}
+          OZON_API_KEY: ${{ secrets.OZON_API_KEY }}
+          ALLOWED_TELEGRAM_GROUP_ID: ${{ secrets.ALLOWED_TELEGRAM_GROUP_ID }}
+          REPORT_TIMEZONE: Europe/Moscow
+        run: python -m ozon_sales_bot.catalog
+      - name: Publish catalog changes
+        shell: bash
+        run: |
+          git add docs/products.json
+          if git diff --cached --quiet; then
+            exit 0
+          fi
+          git -c user.name=github-actions -c user.email=41898282+github-actions[bot]@users.noreply.github.com \
+            commit -m "Update public product catalog"
+          git push

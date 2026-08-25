@@ -1,0 +1,51 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="theme-color" content="#075e54">
+    <title>Заказы Ozon</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="app">
+      <header>
+        <p class="eyebrow">Ozon · Telegram</p>
+        <h1>Параметры отчёта</h1>
+        <p class="intro">Выберите период и товары. В Telegram отправится один готовый запрос.</p>
+      </header>
+
+      <section class="card" aria-labelledby="period-title">
+        <h2 id="period-title">Период продаж</h2>
+        <div class="periods" id="periods"></div>
+      </section>
+
+      <section class="card products-card" aria-labelledby="products-title">
+        <div class="section-heading">
+          <div>
+            <h2 id="products-title">Номенклатуры</h2>
+            <p id="catalog-status">Загружаю каталог…</p>
+          </div>
+          <span class="counter" id="selected-count">Все</span>
+        </div>
+
+        <label class="all-products">
+          <input id="all-products" type="checkbox" checked>
+          <span>Все номенклатуры</span>
+        </label>
+
+        <label class="search">
+          <span class="sr-only">Поиск номенклатуры</span>
+          <input id="search" type="search" placeholder="Название или SKU" autocomplete="off">
+        </label>
+
+        <div class="product-list" id="product-list" aria-live="polite"></div>
+      </section>
+
+      <div class="notice" id="notice" role="status"></div>
+      <button class="send" id="send" type="button" disabled>Отправить запрос в Telegram</button>
+      <p class="hint">После нажатия выберите группу с ботом и отправьте подготовленное сообщение.</p>
+    </main>
+    <script src="app.js" defer></script>
+  </body>
+</html>
