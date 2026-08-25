@@ -8,7 +8,8 @@ from aiogram.methods import GetUpdates
 
 from .bot import SalesBotApp
 from .config import Settings
-from .keyboards import persistent_menu_keyboard, selector_link_keyboard
+from .keyboards import main_menu, persistent_menu_keyboard, selector_link_keyboard
+from .models import UserPreferences
 
 
 logger = logging.getLogger(__name__)
@@ -40,6 +41,14 @@ async def run_once() -> int:
                 reply_markup=selector_link_keyboard(),
             )
             app.storage.set_state("selector_link_version", "1")
+        if app.storage.get_state("simplified_menu_version") != "1":
+            await bot.send_message(
+                app.settings.allowed_telegram_group_id,
+                "Меню обновлено: локальный выбор параметров или быстрый отчёт "
+                "по всем товарам за 30 дней.",
+                reply_markup=main_menu(UserPreferences()),
+            )
+            app.storage.set_state("simplified_menu_version", "1")
         offset = app.storage.get_update_offset()
 
         while True:

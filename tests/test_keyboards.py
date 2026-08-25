@@ -18,4 +18,7 @@ def test_persistent_menu_keyboard():
 
 def test_selector_url_is_available_in_both_menus():
     assert selector_link_keyboard().inline_keyboard[0][0].url == SELECTOR_URL
-    assert main_menu(UserPreferences()).inline_keyboard[0][0].url == SELECTOR_URL
+    menu = main_menu(UserPreferences())
+    assert menu.inline_keyboard[0][0].url == SELECTOR_URL
+    assert menu.inline_keyboard[1][0].callback_data == "report"
+    assert "30 дней" in menu.inline_keyboard[1][0].text
