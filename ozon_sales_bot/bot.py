@@ -3,7 +3,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import time
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F, Router
 from aiogram.enums import ChatMemberStatus, ParseMode
@@ -13,7 +13,14 @@ from aiogram.types import CallbackQuery, Message
 
 from .config import Settings
 from .formatting import format_report
-from .keyboards import MENU_BUTTON_TEXT, main_menu, period_menu, products_menu
+from .keyboards import (
+    MENU_BUTTON_TEXT,
+    calendar_menu,
+    main_menu,
+    period_menu,
+    products_menu,
+)
+from .models import UserPreferences
 from .ozon import OzonApiError, OzonClient
 from .storage import PreferencesStorage
 
@@ -30,6 +37,7 @@ class SalesBotApp:
         )
         self._catalog_cache: tuple[float, list] | None = None
         self._catalog_lock = asyncio.Lock()
+        self._calendar_starts: dict[int, date] = {}
         self.router = Router()
         self._register_handlers()
 
@@ -69,6 +77,11 @@ class SalesBotApp:
         today = datetime.now(self.settings.report_timezone).date()
         return today - timedelta(days=days - 1), today
 
+    def _dates_for_preferences(self, preferences: UserPreferences) -> tuple[date, date]:
+        if preferences.custom_period:
+            return preferences.date_from, preferences.date_to
+        return self._dates(preferences.period_days)
+
     async def show_menu_message(self, message: Message) -> None:
         if await self._deny_message(message):
             return
@@ -92,7 +105,7 @@ class SalesBotApp:
             return
         preferences = self.storage.get(callback.from_user.id)
         await callback.message.edit_text(
-            "Выберите период заказов:", reply_markup=period_menu(preferences.period_days)
+            "Выберите период заказов:", reply_markup=period_menu(preferences)
         )
         await callback.answer()
 
@@ -103,6 +116,85 @@ class SalesBotApp:
         self.storage.set_period(callback.from_user.id, days)
         await callback.message.edit_text(
             f"Период изменён: {days} дней.",
+            reply_markup=main_menu(self.storage.get(callback.from_user.id)),
+        )
+        await callback.answer("Сохранено")
+
+    async def show_calendar(self, callback: CallbackQuery) -> None:
+        if await self._deny_callback(callback):
+            return
+        today = datetime.now(self.settings.report_timezone).date()
+        preferences = self.storage.get(callback.from_user.id)
+        initial = preferences.date_from if preferences.custom_period else today
+        self._calendar_starts.pop(callback.from_user.id, None)
+        await callback.message.edit_text(
+            "Выберите дату начала периода:",
+            reply_markup=calendar_menu(initial.year, initial.month, "start", today),
+        )
+        await callback.answer()
+
+    async def navigate_calendar(self, callback: CallbackQuery) -> None:
+        if await self._deny_callback(callback):
+            return
+        _, _, mode, year_month = callback.data.split(":", 3)
+        year, month = map(int, year_month.split("-"))
+        selected_start = self._calendar_starts.get(callback.from_user.id)
+        if mode == "end" and selected_start is None:
+            await callback.answer("Сначала выберите дату начала", show_alert=True)
+            return
+        today = datetime.now(self.settings.report_timezone).date()
+        prompt = (
+            "Выберите дату начала периода:"
+            if mode == "start"
+            else f"Начало: {selected_start:%d.%m.%Y}\nВыберите дату окончания:"
+        )
+        await callback.message.edit_text(
+            prompt,
+            reply_markup=calendar_menu(
+                year, month, mode, today, selected_start=selected_start
+            ),
+        )
+        await callback.answer()
+
+    async def select_calendar_day(self, callback: CallbackQuery) -> None:
+        if await self._deny_callback(callback):
+            return
+        _, _, mode, value = callback.data.split(":", 3)
+        selected_date = date.fromisoformat(value)
+        today = datetime.now(self.settings.report_timezone).date()
+        if selected_date > today:
+            await callback.answer("Нельзя выбрать будущую дату", show_alert=True)
+            return
+        if mode == "start":
+            self._calendar_starts[callback.from_user.id] = selected_date
+            await callback.message.edit_text(
+                f"Начало: {selected_date:%d.%m.%Y}\nВыберите дату окончания:",
+                reply_markup=calendar_menu(
+                    selected_date.year,
+                    selected_date.month,
+                    "end",
+                    today,
+                    selected_start=selected_date,
+                ),
+            )
+            await callback.answer("Дата начала выбрана")
+            return
+
+        selected_start = self._calendar_starts.get(callback.from_user.id)
+        if selected_start is None:
+            await callback.answer("Сначала выберите дату начала", show_alert=True)
+            return
+        if selected_date < selected_start:
+            await callback.answer(
+                "Дата окончания не может быть раньше начала", show_alert=True
+            )
+            return
+        self.storage.set_custom_period(
+            callback.from_user.id, selected_start, selected_date
+        )
+        self._calendar_starts.pop(callback.from_user.id, None)
+        await callback.message.edit_text(
+            f"Период изменён: {selected_start:%d.%m.%Y}–{selected_date:%d.%m.%Y}.",
             reply_markup=main_menu(self.storage.get(callback.from_user.id)),
         )
         await callback.answer("Сохранено")
@@ -178,19 +270,21 @@ class SalesBotApp:
 
     async def _send_saved_report(self, message: Message, user_id: int) -> None:
         preferences = self.storage.get(user_id)
+        date_from, date_to = self._dates_for_preferences(preferences)
         await self._send_report_with_filters(
             message,
-            preferences.period_days,
+            date_from,
+            date_to,
             preferences.selected_skus,
         )
 
     async def _send_report_with_filters(
         self,
         message: Message,
-        period_days: int,
+        date_from: date,
+        date_to: date,
         selected_skus: frozenset[str] | None,
     ) -> None:
-        date_from, date_to = self._dates(period_days)
         status = await message.answer("Получаю данные из Ozon…")
         try:
             rows = await self.ozon.get_sales(date_from, date_to, selected_skus)
@@ -214,6 +308,15 @@ class SalesBotApp:
         self.router.callback_query.register(self.show_menu_callback, F.data == "menu")
         self.router.callback_query.register(self.show_periods, F.data == "period:menu")
         self.router.callback_query.register(self.set_period, F.data.startswith("period:set:"))
+        self.router.callback_query.register(
+            self.show_calendar, F.data == "period:calendar"
+        )
+        self.router.callback_query.register(
+            self.navigate_calendar, F.data.startswith("cal:nav:")
+        )
+        self.router.callback_query.register(
+            self.select_calendar_day, F.data.startswith("cal:day:")
+        )
         self.router.callback_query.register(self.show_products, F.data.startswith("products:"), F.data != "products:all")
         self.router.callback_query.register(self.set_all_products, F.data == "products:all")
         self.router.callback_query.register(self.toggle_product, F.data.startswith("product:toggle:"))

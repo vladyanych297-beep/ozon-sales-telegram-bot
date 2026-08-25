@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import calendar
+from datetime import date
+
 from aiogram.types import (
     InlineKeyboardButton,
     InlineKeyboardMarkup,
@@ -27,6 +30,12 @@ def persistent_menu_keyboard() -> ReplyKeyboardMarkup:
 
 def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
     products_label = "Все" if preferences.all_products else str(len(preferences.selected_skus or ()))
+    if preferences.custom_period:
+        period_label = (
+            f"{preferences.date_from:%d.%m.%Y}–{preferences.date_to:%d.%m.%Y}"
+        )
+    else:
+        period_label = f"{preferences.period_days} дней"
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -37,7 +46,7 @@ def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
             ],
             [
                 InlineKeyboardButton(
-                    text=f"📅 Период: {preferences.period_days} дней",
+                    text=f"📅 Период: {period_label}",
                     callback_data="period:menu",
                 ),
                 InlineKeyboardButton(
@@ -49,13 +58,93 @@ def main_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
     )
 
 
-def period_menu(current_days: int) -> InlineKeyboardMarkup:
+def period_menu(preferences: UserPreferences) -> InlineKeyboardMarkup:
     builder = InlineKeyboardBuilder()
     for days in PERIODS:
-        marker = "✅ " if days == current_days else ""
+        marker = "✅ " if not preferences.custom_period and days == preferences.period_days else ""
         builder.button(text=f"{marker}{days} дней", callback_data=f"period:set:{days}")
     builder.adjust(2, 2, 1)
+    custom_marker = "✅ " if preferences.custom_period else ""
+    builder.row(
+        InlineKeyboardButton(
+            text=f"{custom_marker}🗓 Выбрать даты",
+            callback_data="period:calendar",
+        )
+    )
     builder.row(InlineKeyboardButton(text="← Назад", callback_data="menu"))
+    return builder.as_markup()
+
+
+MONTH_NAMES = (
+    "",
+    "Январь",
+    "Февраль",
+    "Март",
+    "Апрель",
+    "Май",
+    "Июнь",
+    "Июль",
+    "Август",
+    "Сентябрь",
+    "Октябрь",
+    "Ноябрь",
+    "Декабрь",
+)
+
+
+def calendar_menu(
+    year: int,
+    month: int,
+    mode: str,
+    today: date,
+    selected_start: date | None = None,
+) -> InlineKeyboardMarkup:
+    builder = InlineKeyboardBuilder()
+    builder.row(
+        InlineKeyboardButton(
+            text=f"{MONTH_NAMES[month]} {year}", callback_data="noop"
+        )
+    )
+    builder.row(
+        *[
+            InlineKeyboardButton(text=label, callback_data="noop")
+            for label in ("Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс")
+        ]
+    )
+    for week in calendar.monthcalendar(year, month):
+        buttons = []
+        for day_number in week:
+            if day_number == 0:
+                buttons.append(InlineKeyboardButton(text=" ", callback_data="noop"))
+                continue
+            value = date(year, month, day_number)
+            if value > today or (mode == "end" and selected_start and value < selected_start):
+                callback_data = "noop"
+                label = "·"
+            else:
+                callback_data = f"cal:day:{mode}:{value.isoformat()}"
+                label = str(day_number)
+                if value == selected_start:
+                    label = f"✅{day_number}"
+            buttons.append(InlineKeyboardButton(text=label, callback_data=callback_data))
+        builder.row(*buttons)
+
+    previous_month = date(year - 1, 12, 1) if month == 1 else date(year, month - 1, 1)
+    next_month = date(year + 1, 1, 1) if month == 12 else date(year, month + 1, 1)
+    navigation = [
+        InlineKeyboardButton(
+            text="←",
+            callback_data=f"cal:nav:{mode}:{previous_month:%Y-%m}",
+        )
+    ]
+    if next_month <= today.replace(day=1):
+        navigation.append(
+            InlineKeyboardButton(
+                text="→", callback_data=f"cal:nav:{mode}:{next_month:%Y-%m}"
+            )
+        )
+    builder.row(*navigation)
+    builder.row(InlineKeyboardButton(text="Отмена", callback_data="period:menu"))
     return builder.as_markup()
 
 
