@@ -14,10 +14,11 @@ class OzonApiError(RuntimeError):
 
 
 class OzonClient:
-    FBO_ENDPOINT = "/v2/posting/fbo/list"
+    FBO_ENDPOINT = "/v3/posting/fbo/list"
     FBS_ENDPOINT = "/v4/posting/fbs/list"
-    FBO_PAGE_SIZE = 1000
+    FBO_PAGE_SIZE = 100
     FBS_PAGE_SIZE = 100
+    FINANCIAL_DATA = False
 
     def __init__(self, base_url: str, client_id: str, api_key: str) -> None:
         self._http = httpx.AsyncClient(
@@ -57,37 +58,43 @@ class OzonClient:
             raise OzonApiError(f"Ошибка запроса к Ozon Seller API{detail}") from exc
 
     async def _get_fbo_postings(self, date_from: date, date_to: date) -> list[dict]:
+        since, until = self._date_bounds(date_from, date_to)
         postings: list[dict] = []
-        offset = 0
+        cursor = ""
         while True:
             payload = await self._post(
                 self.FBO_ENDPOINT,
                 {
-                    "dir": "ASC",
+                    "cursor": cursor,
                     "filter": {
-                        "since": f"{date_from.isoformat()}T00:00:00.000Z",
-                        "to": f"{date_to.isoformat()}T23:59:59.999Z",
-                        "status": "",
+                        "since": since,
+                        "to": until,
+                        "status": [],
                     },
                     "limit": self.FBO_PAGE_SIZE,
-                    "offset": offset,
+                    "sort_dir": "ASC",
                     "translit": False,
                     "with": {
-                        "analytics_data": False,
-                        "financial_data": False,
+                        "analytics_data": True,
+                        "financial_data": self.FINANCIAL_DATA,
                         "legal_info": False,
                     },
                 },
             )
-            page = payload.get("result")
-            if not isinstance(page, list):
+            page = payload.get("postings")
+            has_next = payload.get("has_next")
+            if not isinstance(page, list) or not isinstance(has_next, bool):
                 raise OzonApiError("Ozon FBO API вернул ответ неизвестного формата")
             postings.extend(page)
-            if len(page) < self.FBO_PAGE_SIZE:
+            if not has_next:
                 return postings
-            offset += len(page)
+            next_cursor = str(payload.get("cursor") or "")
+            if not page or not next_cursor or next_cursor == cursor:
+                raise OzonApiError("Ozon FBO API не вернул курсор следующей страницы")
+            cursor = next_cursor
 
     async def _get_fbs_postings(self, date_from: date, date_to: date) -> list[dict]:
+        since, until = self._date_bounds(date_from, date_to)
         postings: list[dict] = []
         cursor = ""
         while True:
@@ -96,8 +103,8 @@ class OzonClient:
                 {
                     "sort_dir": "asc",
                     "filter": {
-                        "since": f"{date_from.isoformat()}T00:00:00.000Z",
-                        "to": f"{date_to.isoformat()}T23:59:59.999Z",
+                        "since": since,
+                        "to": until,
                         "status": [],
                     },
                     "limit": self.FBS_PAGE_SIZE,
@@ -106,7 +113,7 @@ class OzonClient:
                     "with": {
                         "analytics_data": False,
                         "barcodes": False,
-                        "financial_data": False,
+                        "financial_data": self.FINANCIAL_DATA,
                         "legal_info": False,
                         "translit": False,
                     },
@@ -123,6 +130,9 @@ class OzonClient:
             if not next_cursor or next_cursor == cursor:
                 raise OzonApiError("Ozon FBS API не вернул курсор следующей страницы")
             cursor = next_cursor
+
+    def _date_bounds(self, date_from: date, date_to: date) -> tuple[str, str]:
+        return f"{date_from.isoformat()}T00:00:00.000Z", f"{date_to.isoformat()}T23:59:59.999Z"
 
     @staticmethod
     def _aggregate_postings(

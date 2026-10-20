@@ -17,6 +17,7 @@ class Settings:
     ozon_api_base_url: str
     report_timezone: ZoneInfo
     allowed_telegram_group_id: int
+    forecast_auth_db: Path | None = None
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -54,4 +55,6 @@ class Settings:
             ).rstrip("/"),
             report_timezone=timezone,
             allowed_telegram_group_id=allowed_group_id,
+            forecast_auth_db=(Path(os.environ["FORECAST_AUTH_DB"])
+                              if os.getenv("FORECAST_AUTH_DB") else None),
         )

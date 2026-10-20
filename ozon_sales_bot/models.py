@@ -9,6 +9,8 @@ class SaleRow:
     sku: str
     name: str
     ordered_units: int
+    cluster: str | None = None
+    scheme: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

@@ -6,11 +6,12 @@ import time
 from datetime import date, datetime, timedelta
 
 from aiogram import Bot, Dispatcher, F, Router
-from aiogram.enums import ChatMemberStatus, ParseMode
+from aiogram.enums import ParseMode
 from aiogram.exceptions import TelegramAPIError
-from aiogram.filters import Command, CommandStart
-from aiogram.types import CallbackQuery, Message
+from aiogram.filters import Command, CommandObject, CommandStart
+from aiogram.types import CallbackQuery, InlineKeyboardButton, InlineKeyboardMarkup, Message
 
+from .android_auth import AuthStore, auth_scope, is_group_member
 from .config import Settings
 from .formatting import format_report
 from .keyboards import (
@@ -38,6 +39,11 @@ class SalesBotApp:
         self._catalog_cache: tuple[float, list] | None = None
         self._catalog_lock = asyncio.Lock()
         self._calendar_starts: dict[int, date] = {}
+        self.android_auth = (
+            AuthStore(settings.forecast_auth_db, auth_scope(
+                settings.telegram_bot_token, settings.allowed_telegram_group_id,
+            )) if settings.forecast_auth_db else None
+        )
         self.router = Router()
         self._register_handlers()
 
@@ -48,9 +54,49 @@ class SalesBotApp:
                 user_id=user_id,
             )
         except TelegramAPIError:
-            logger.exception("Could not check Telegram group membership")
+            logger.warning("Could not check Telegram group membership")
             return False
-        return member.status not in {ChatMemberStatus.LEFT, ChatMemberStatus.KICKED}
+        return is_group_member(member.status, getattr(member, "is_member", False))
+
+    async def android_login(self, message: Message, command: CommandObject) -> None:
+        if message.chat.type != "private" or not message.from_user or message.from_user.is_bot:
+            await message.answer("Подтвердите вход в личном чате с ботом.")
+            return
+        if self.android_auth is None:
+            await message.answer("Вход в приложение ещё не настроен на сервере бота.")
+            return
+        link = (command.args or "")[4:]
+        code = self.android_auth.preview(link)
+        if code is None:
+            await message.answer("Ссылка истекла или уже использована. Начните вход в приложении заново.")
+            return
+        if not await self._authorized(message.bot, message.from_user.id):
+            await message.answer("Доступ разрешён только участникам группы магазина.")
+            return
+        await message.answer(
+            f"Вход в приложение «План поставок». Код: {code}\n\n"
+            "Сравните код с экраном своего приложения. Подтверждайте только вход, "
+            "который начали сами. Не подтверждайте чужие ссылки: это откроет доступ "
+            "к данным магазина на чужом устройстве.",
+            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[
+                InlineKeyboardButton(text="Подтвердить мой вход", callback_data=f"apk:{link}")
+            ]]),
+        )
+
+    async def android_confirm(self, callback: CallbackQuery) -> None:
+        if (self.android_auth is None or callback.message is None
+                or callback.message.chat.type != "private"
+                or callback.message.chat.id != callback.from_user.id or callback.from_user.is_bot):
+            await callback.answer("Вход недоступен", show_alert=True)
+            return
+        if not await self._authorized(callback.bot, callback.from_user.id):
+            await callback.answer("Нет доступа к группе магазина", show_alert=True)
+            return
+        if not self.android_auth.approve(callback.data[4:], callback.from_user.id):
+            await callback.answer("Запрос истёк или уже использован", show_alert=True)
+            return
+        await callback.message.edit_text("Вход подтверждён. Вернитесь в приложение «План поставок».")
+        await callback.answer()
 
     async def _deny_message(self, message: Message) -> bool:
         if message.chat.id != self.settings.allowed_telegram_group_id:
@@ -301,6 +347,12 @@ class SalesBotApp:
         await callback.answer()
 
     def _register_handlers(self) -> None:
+        self.router.message.register(
+            self.android_login, CommandStart(deep_link=True, magic=F.args.regexp(r"^apk_[A-Za-z0-9_-]{43}$")),
+        )
+        self.router.callback_query.register(
+            self.android_confirm, F.data.regexp(r"^apk:[A-Za-z0-9_-]{43}$"),
+        )
         self.router.message.register(self.show_menu_message, CommandStart())
         self.router.message.register(self.show_menu_message, Command("menu"))
         self.router.message.register(self.show_menu_message, F.text == MENU_BUTTON_TEXT)
