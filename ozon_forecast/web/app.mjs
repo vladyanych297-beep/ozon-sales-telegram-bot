@@ -1,4 +1,4 @@
-import {METRICS, quantity, money, supply, stockDays, sortedClusters, parseCost, rowProfit, margin, profitSummary, todayInZone, daysRange, validRange, validateReport} from './model.mjs';
+import {METRICS, quantity, money, supply, stockDays, sortedClusters, parseCost, rowProfit, margin, profitSummary, todayInZone, daysRange, validRange, validateReport, presetRange} from './model.mjs';
 import {readReport, writeReport} from './storage.mjs';
 
 const $ = id => document.getElementById(id);
@@ -96,6 +96,7 @@ function currentRange() {
   return document.querySelector('[name=mode]:checked').value === 'days' ? daysRange(Number($('profit-days').value), today) : {from:$('date-from').value, to:$('date-to').value};
 }
 function syncPeriod() {
+  document.querySelectorAll('[data-period]').forEach(button => {button.disabled = states.profit.busy || savingCost;});
   const dates = document.querySelector('[name=mode]:checked').value === 'dates';
   $('profit-days-field').hidden = dates; $('profit-dates-fields').hidden = !dates;
   $('profit-days').disabled = dates || states.profit.busy || savingCost;
@@ -105,6 +106,18 @@ function syncPeriod() {
   const range = currentRange();
   $('profit-range').textContent = range && validRange(range.from, range.to, today) ? `${dateLabel(range.from)} — ${dateLabel(range.to)} · обе даты включены` : 'Выберите от 1 до 365 дней, не позднее сегодня.';
 }
+$('period-presets').addEventListener('click', event => {
+  const button = event.target.closest('[data-period]');
+  if (!button || states.profit.busy || savingCost) return;
+  const preset = button.dataset.period;
+  const range = presetRange(preset, todayInZone(states.profit.report?.timezone ?? 'Europe/Moscow'));
+  if (!range) return;
+  const days = /^\d+$/.test(preset);
+  document.querySelector(`[name=mode][value=${days ? 'days' : 'dates'}]`).checked = true;
+  if (days) $('profit-days').value = preset;
+  $('date-from').value = range.from; $('date-to').value = range.to;
+  syncPeriod();
+});
 async function request(path, options = {}, timeout = 210000) {
   const controller = new AbortController(), timer = setTimeout(() => controller.abort(), timeout);
   try {

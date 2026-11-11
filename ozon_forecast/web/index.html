@@ -53,6 +53,7 @@
       <section id="profit-panel" aria-labelledby="profit-heading" hidden>
         <div class="page-heading"><p class="eyebrow">ФИНАНСЫ · FBO + FBS</p><h1 id="profit-heading">Рентабельность</h1><p>От выручки — к прибыли по товарам.</p></div>
         <form id="profit-form" class="panel controls">
+          <div id="period-presets" class="period-presets" aria-label="Быстрый выбор периода"><button type="button" data-period="7">7 дней</button><button type="button" data-period="14">14 дней</button><button type="button" data-period="30">30 дней</button><button type="button" data-period="60">60 дней</button><button type="button" data-period="90">90 дней</button><button type="button" data-period="month">Текущий месяц</button><button type="button" data-period="previous">Прошлый месяц</button></div>
           <fieldset class="period-mode"><legend class="sr-only">Способ выбора периода</legend><label><input type="radio" name="mode" value="days" checked> По дням</label><label><input type="radio" name="mode" value="dates"> По датам</label></fieldset>
           <div id="profit-days-field"><label>Дней, включая сегодня<input id="profit-days" type="number" min="1" max="365" step="1" inputmode="numeric" required value="30"></label></div>
           <div class="fields two" id="profit-dates-fields" hidden><label>С даты<input id="date-from" type="date" required disabled></label><label>По дату<input id="date-to" type="date" required disabled></label></div>

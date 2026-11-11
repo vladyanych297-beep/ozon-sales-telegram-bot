@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
+import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,presetRange,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
 
 // Synthetic values only. Never use a seller's financial response as a fixture.
 const row = (extra={}) => ({product_id:'1',offer_id:'TEST-1',name:'Тестовый товар',ordered:10,redeemed:8,returned:2,revenue_cents:90000,fees_cents:10000,cost_cents:5000,average_fee_cents:1000,...extra});
@@ -75,4 +75,12 @@ test('service worker only intercepts shell files; no API or POST requests', () =
     handlers.fetch({request:{url:new URL(path,location.href).href,method},respondWith:()=>intercepted=true});
     assert.equal(intercepted,false,path);
   }
+});
+
+test('quick periods include today and handle month/year/leap boundaries', () => {
+  assert.deepEqual(presetRange('7','2026-01-03'), {from:'2025-12-28',to:'2026-01-03'});
+  assert.deepEqual(presetRange('month','2026-01-03'), {from:'2026-01-01',to:'2026-01-03'});
+  assert.deepEqual(presetRange('previous','2026-01-03'), {from:'2025-12-01',to:'2025-12-31'});
+  assert.deepEqual(presetRange('previous','2024-03-01'), {from:'2024-02-01',to:'2024-02-29'});
+  assert.equal(presetRange('unknown','2026-01-03'), null);
 });

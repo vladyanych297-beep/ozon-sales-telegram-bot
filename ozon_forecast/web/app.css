@@ -3,3 +3,5 @@
 @media(min-width:620px){.shell{padding-left:28px;padding-right:28px}.brandbar{margin-bottom:28px}h1{font-size:38px}.controls{padding:22px}.overview dd{font-size:30px}.metrics{grid-template-columns:repeat(3,minmax(0,1fr))}.cluster .metrics{grid-template-columns:repeat(5,minmax(0,1fr))}.earned{font-size:42px}.profit-card .metrics{grid-template-columns:repeat(3,minmax(0,1fr))}}
 @media(max-width:359px){.shell{padding-left:max(12px,env(safe-area-inset-left));padding-right:max(12px,env(safe-area-inset-right))}h1{font-size:29px}.controls{padding:14px}.fields{gap:8px}label{font-size:11px}.earned{font-size:29px}.cluster .metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.product>summary{gap:10px;padding:15px}.product-body{padding:0 15px 15px}}
 @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+
+.period-presets{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}.period-presets button{min-height:44px;padding:10px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--green);font:inherit;font-size:14px}

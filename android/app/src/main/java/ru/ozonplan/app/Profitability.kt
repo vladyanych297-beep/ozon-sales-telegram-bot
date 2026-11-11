@@ -187,6 +187,23 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                 TextButton(onClick = onBack) { Text("← План поставок") }
                 Text("Рентабельность", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
                 Text("Операции FBO + FBS по датам начислений и списаний. Доход включает оплату покупателей, баллы за скидки и доплаты Ozon.", style = MaterialTheme.typography.bodySmall)
+                listOf(listOf("7", "14", "30"), listOf("60", "90")).forEach { periods ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        periods.forEach { days ->
+                            OutlinedButton(onClick = { model.days(days) }, enabled = !state.loading && !state.saving) { Text("$days дней") }
+                        }
+                    }
+                }
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TextButton(onClick = {
+                        val today = LocalDate.now(java.time.ZoneId.of("Europe/Moscow"))
+                        model.dates(today.withDayOfMonth(1).toString(), today.toString())
+                    }, enabled = !state.loading && !state.saving) { Text("Текущий месяц") }
+                    TextButton(onClick = {
+                        val last = LocalDate.now(java.time.ZoneId.of("Europe/Moscow")).withDayOfMonth(1).minusDays(1)
+                        model.dates(last.withDayOfMonth(1).toString(), last.toString())
+                    }, enabled = !state.loading && !state.saving) { Text("Прошлый месяц") }
+                }
                 OutlinedTextField(state.daysInput, model::days, label = { Text("Период, дней") },
                     supportingText = { Text("Отсчитывается назад от сегодня, включая сегодняшний день. Можно также задать даты вручную.") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,

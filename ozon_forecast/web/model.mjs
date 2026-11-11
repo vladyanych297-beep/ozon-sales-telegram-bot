@@ -57,6 +57,17 @@ export function daysRange(days, today = todayInZone()) {
 export function validRange(from, to, today = todayInZone()) {
   return dateValid(from) && dateValid(to) && from <= to && to <= today && (Date.parse(to) - Date.parse(from)) / 86400000 < 365;
 }
+export function presetRange(preset, today = todayInZone()) {
+  if (!dateValid(today)) return null;
+  if (/^\d+$/.test(String(preset))) return daysRange(Number(preset), today);
+  const first = today.slice(0, 7) + '-01';
+  if (preset === 'month') return {from: first, to: today};
+  if (preset === 'previous') {
+    const last = new Date(Date.parse(first) - 86400000).toISOString().slice(0, 10);
+    return {from: last.slice(0, 7) + '-01', to: last};
+  }
+  return null;
+}
 export function validateReport(kind, data) {
   const invalid = () => { throw new Error('Сервер вернул неполный или неподдерживаемый отчёт. Предыдущий отчёт сохранён.'); };
   if (!data || !Array.isArray(data.rows) || !Number.isFinite(Date.parse(data.fetched_at)) || typeof data.stale !== 'boolean' || typeof data.timezone !== 'string') invalid();
