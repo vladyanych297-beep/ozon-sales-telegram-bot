@@ -38,7 +38,7 @@ data class ClusterStock(
 }
 
 internal fun formatStockDays(days: Double?): String? =
-    days?.let { "${it.roundToLong()} дн." }
+    days?.let { "${formatQuantity(it.roundToLong())} дн." }
 
 fun calculateStockDays(sales: Long, stock: Long, salesDays: Int): Double? {
     require(sales >= 0 && stock >= 0 && salesDays in 1..365)
@@ -182,4 +182,13 @@ fun normalizeServer(value: String, allowLocalHttp: Boolean): String {
         "Для подключения требуется HTTPS"
     }
     return value.trim().trimEnd('/')
+}
+
+internal fun formatQuantity(value: Long): String = groupThousands(value.toString())
+
+internal fun groupThousands(value: String): String {
+    val sign = if (value.startsWith("-")) "-" else ""
+    val parts = value.removePrefix("-").split('.', limit = 2)
+    val integer = parts[0].reversed().chunked(3).joinToString(" ").reversed()
+    return sign + integer + if (parts.size == 2) "." + parts[1] else ""
 }

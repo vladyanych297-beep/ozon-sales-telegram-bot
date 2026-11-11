@@ -200,11 +200,11 @@ fun ForecastScreen(model: ForecastViewModel = viewModel()) {
                                         color = Color.White.copy(alpha = 0.75f), fontSize = 11.sp,
                                         letterSpacing = 1.sp)
                                     Row(verticalAlignment = Alignment.Bottom) {
-                                        Text(total.toString(), color = Color.White, fontSize = 34.sp,
+                                        Text(formatQuantity(total), color = Color.White, fontSize = 34.sp,
                                             fontWeight = FontWeight.Bold)
                                         Text("  шт.", color = Color.White, modifier = Modifier.padding(bottom = 6.dp))
                                     }
-                                    Text("${report.rows.size} товаров · все склады Ozon", color = Color.White, fontSize = 12.sp)
+                                    Text("${formatQuantity(report.rows.size.toLong())} товаров · все склады Ozon", color = Color.White, fontSize = 12.sp)
                                 }
                             }
                             Spacer(Modifier.height(10.dp))
@@ -291,10 +291,10 @@ private fun ProductCard(
             Text(row.offerId, color = Muted, fontSize = 11.sp, modifier = Modifier.padding(top = 3.dp))
             Spacer(Modifier.height(15.dp))
             Row(Modifier.fillMaxWidth()) {
-                Metric("Продажи / ${salesDays}д", row.sales.toString(), Modifier.weight(1.1f))
-                Metric("Остаток", row.stock.toString(), Modifier.weight(1f))
-                Metric("В пути", row.inTransit.toString(), Modifier.weight(1f))
-                Metric("К поставке", row.toSupply(forecastDays, salesDays).toString(),
+                Metric("Продажи / ${salesDays}д", formatQuantity(row.sales), Modifier.weight(1.1f))
+                Metric("Остаток", formatQuantity(row.stock), Modifier.weight(1f))
+                Metric("В пути", formatQuantity(row.inTransit), Modifier.weight(1f))
+                Metric("К поставке", formatQuantity(row.toSupply(forecastDays, salesDays)),
                     Modifier.weight(1.1f), true)
             }
             StockDaysLabel(calculateStockDays(row.sales, row.stock, salesDays))
@@ -318,7 +318,7 @@ private fun ProductCard(
                                 Text(quantities, color = Muted, fontSize = 12.sp)
                             }
                             if (ClusterMetric.TO_SUPPLY in metrics) {
-                                Text("К поставке на ${forecastDays}д: ${cluster.toSupply(forecastDays, salesDays)} шт.",
+                                Text("К поставке на ${forecastDays}д: ${formatQuantity(cluster.toSupply(forecastDays, salesDays))} шт.",
                                     color = Blue, fontSize = 13.sp, fontWeight = FontWeight.Bold,
                                     modifier = Modifier.padding(top = 4.dp))
                             }
@@ -375,7 +375,7 @@ internal fun clusterMetricsText(
 
 private fun androidx.compose.ui.text.AnnotatedString.Builder.metricValue(value: Long) {
     if (value != 0L) {
-        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(value.toString()) }
+        withStyle(SpanStyle(fontWeight = FontWeight.Bold)) { append(formatQuantity(value)) }
     } else {
         append("0")
     }

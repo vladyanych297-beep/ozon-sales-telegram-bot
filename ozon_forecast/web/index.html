@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#f5f6f2">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="План поставок">
+  <meta name="description" content="План поставок и рентабельность Ozon. Продажи FBO и FBS, остатки FBO и общий финансовый итог.">
+  <title>План поставок · VaraneZ</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <link rel="apple-touch-icon" href="./icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="./icons/icon-192.png">
+  <link rel="stylesheet" href="./app.css">
+  <script type="module" src="./app.mjs"></script>
+</head>
+<body>
+  <div class="shell">
+    <header class="brandbar">
+      <a class="brand" href="./" aria-label="VaraneZ — План поставок"><img src="./icons/icon-192.png" width="40" height="40" alt=""><span>VaraneZ<small>Кабинет продавца Ozon</small></span></a>
+      <button id="install-open" class="icon-button" aria-label="Как установить на iPhone" title="Установить на iPhone">↗</button>
+    </header>
+    <nav class="tabs" aria-label="Разделы">
+      <button data-tab="forecast" aria-current="page">План поставок</button>
+      <button data-tab="profit">Рентабельность</button>
+    </nav>
+    <div id="offline" class="notice warning" hidden>Нет подключения. Доступен последний сохранённый отчёт.</div>
+    <div id="storage-warning" class="notice warning" hidden></div>
+    <div id="sw-update" class="notice" hidden>Доступна новая версия интерфейса. <button id="sw-apply" class="text-button">Установить</button></div>
+    <main>
+      <section id="forecast-panel" aria-labelledby="forecast-heading">
+        <div class="page-heading"><p class="eyebrow">ПОСТАВКИ · FBO + FBS</p><h1 id="forecast-heading">План поставок</h1><p>Сколько отправить в каждый кластер.</p></div>
+        <form id="forecast-form" class="panel controls">
+          <div class="fields two">
+            <label>Продажи за период, дней<input name="sales_days" id="sales-days" type="number" inputmode="numeric" min="1" max="365" step="1" required value="30"></label>
+            <label>Прогноз вперёд, дней<input name="days" id="forecast-days" type="number" inputmode="numeric" min="1" max="365" step="1" required value="30"></label>
+          </div>
+          <button class="primary" type="submit">Обновить</button>
+          <p class="hint">Параметры применятся по кнопке. Продажи в кластер: FBO + FBS. Остатки и в пути: только FBO.</p>
+          <div id="forecast-loading" class="loading" role="status" hidden><span class="spinner"></span><span>Получаем продажи и остатки от сервера…</span></div>
+          <p id="forecast-error" class="error" role="alert" hidden></p>
+        </form>
+        <div id="forecast-report"></div>
+        <div class="list-tools" id="forecast-tools" hidden>
+          <label class="search-label"><span class="sr-only">Поиск по названию, артикулу или SKU</span><input type="search" id="forecast-search" placeholder="Название, артикул или SKU" enterkeyhint="search"></label>
+          <label class="switch-label"><input type="checkbox" id="supply-only">Только к поставке</label>
+          <details class="metric-settings"><summary>Показатели кластеров <span>Настроить</span></summary><fieldset id="metrics"><legend class="sr-only">Общие показатели для всех кластеров</legend></fieldset><p class="hint">Один набор для всех товаров. Запас — на сколько дней хватит текущего остатка.</p></details>
+        </div>
+        <p id="forecast-count" class="list-count"></p>
+        <div id="forecast-list" class="product-list"></div>
+      </section>
+      <section id="profit-panel" aria-labelledby="profit-heading" hidden>
+        <div class="page-heading"><p class="eyebrow">ФИНАНСЫ · FBO + FBS</p><h1 id="profit-heading">Рентабельность</h1><p>От выручки — к прибыли по товарам.</p></div>
+        <form id="profit-form" class="panel controls">
+          <fieldset class="period-mode"><legend class="sr-only">Способ выбора периода</legend><label><input type="radio" name="mode" value="days" checked> По дням</label><label><input type="radio" name="mode" value="dates"> По датам</label></fieldset>
+          <div id="profit-days-field"><label>Дней, включая сегодня<input id="profit-days" type="number" min="1" max="365" step="1" inputmode="numeric" required value="30"></label></div>
+          <div class="fields two" id="profit-dates-fields" hidden><label>С даты<input id="date-from" type="date" required disabled></label><label>По дату<input id="date-to" type="date" required disabled></label></div>
+          <p id="profit-range" class="hint"></p>
+          <button class="primary" type="submit">Обновить</button>
+          <p class="hint">Операции по датам начислений и списаний. Доход включает оплату покупателей, баллы за скидки и доплаты Ozon.</p>
+          <div id="profit-loading" class="loading" role="status" hidden><span class="spinner"></span><span>Получаем заказы, начисления и общие расходы… При ограничениях Ozon сервер подождёт и продолжит.</span></div>
+          <p id="profit-error" class="error" role="alert" hidden></p>
+        </form>
+        <div id="profit-report"></div>
+        <div class="list-tools" id="profit-tools" hidden><label class="search-label"><span class="sr-only">Поиск по названию или артикулу</span><input type="search" id="profit-search" placeholder="Название или артикул" enterkeyhint="search"></label></div>
+        <p id="profit-count" class="list-count"></p>
+        <div id="profit-list" class="product-list"></div>
+      </section>
+    </main>
+    <footer><span>© ESI.Company</span><button id="install-footer" class="text-button">На экран iPhone ↗</button></footer>
+  </div>
+  <dialog id="install-dialog" aria-labelledby="install-heading"><div class="dialog-content"><p class="eyebrow">ВСЕГДА ПОД РУКОЙ</p><h2 id="install-heading" tabindex="-1" autofocus>План поставок на iPhone</h2><ol class="install-steps"><li>Откройте эту страницу в <strong>Safari</strong>.</li><li>Нажмите <strong>«Поделиться»</strong> — значок квадрата со стрелкой вверх. В новых версиях Safari он может находиться в меню «Ещё».</li><li>Выберите <strong>«На экран Домой»</strong>. Если есть переключатель «Открывать как веб-приложение», включите его.</li><li>Нажмите <strong>«Добавить»</strong>.</li></ol><p class="hint">После установки откройте приложение с иконки и нажмите «Обновить». Safari и приложение могут хранить отчёты отдельно. Для обновления нужен интернет; сохранённый отчёт доступен без сети, пока iOS хранит данные сайта.</p><button class="primary" id="install-close">Понятно</button></div></dialog>
+  <dialog id="cost-dialog" aria-labelledby="cost-heading"><form id="cost-form" class="dialog-content"><p class="eyebrow">ОБЩАЯ СЕБЕСТОИМОСТЬ</p><h2 id="cost-heading">Стоимость единицы</h2><p id="cost-product"></p><p class="hint">Последнее сохранённое значение применяется для всех пользователей и всех периодов. Ноль считается заданной себестоимостью.</p><label>Себестоимость, ₽<input id="cost-value" type="text" inputmode="decimal" autocomplete="off" enterkeyhint="done" required></label><p id="cost-error" class="error" role="alert" hidden></p><button id="cost-save" class="primary" type="submit">Сохранить для всех</button><button id="cost-cancel" class="secondary" type="button">Отмена</button></form></dialog>
+  <noscript><p class="notice warning">Для работы интерфейса включите JavaScript в настройках Safari.</p></noscript>
+</body>
+</html>

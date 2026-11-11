@@ -11,12 +11,26 @@ class ProfitabilityTest {
         assertEquals(365L, java.time.temporal.ChronoUnit.DAYS.between(profitabilityRange(365, today).first, today) + 1)
         assertFalse(ProfitState(daysInput = "0").valid)
     }
-    @Test fun totalProfitIncludesLossesAndRequiresAllCosts() {
+    @Test fun totalProfitIncludesOnlyKnownCostsAndKeepsLosses() {
         val row = ProfitRow("1", "offer", "name", 2, 2, 1, 50000, 12000, 20000)
         assertEquals(18000L, totalProfit(listOf(row)))
+        assertEquals(13000L, totalProfit(listOf(row), 5000))
+        assertEquals(-5000L, totalProfit(emptyList(), 5000))
+        assertEquals(20000L, totalProfit(listOf(row), -2000))
         assertEquals(-14000L, totalProfit(listOf(row, row.copy(cost = 70000))))
-        assertNull(totalProfit(listOf(row, row.copy(cost = null))))
+        assertEquals(18000L, totalProfit(listOf(row, row.copy(cost = null))))
+        assertEquals(0L, totalProfit(listOf(row.copy(cost = null))))
+        assertEquals(38000L, totalProfit(listOf(row.copy(cost = 0))))
         assertEquals(0L, totalProfit(emptyList()))
+    }
+    @Test fun numbersHaveSpaceSeparatedThousands() {
+        assertEquals("999", formatQuantity(999))
+        assertEquals("1 000", formatQuantity(1000))
+        assertEquals("1 250 000", formatQuantity(1250000))
+        assertEquals("-1 250", formatQuantity(-1250))
+        assertEquals("1 234,56 ₽", currency(123456))
+        assertEquals("-1 234,56 ₽", currency(-123456))
+        assertEquals("1 000 дн.", formatStockDays(1000.0))
     }
     @Test fun costInputIsExactAndNonnegative() {
         assertEquals(12345L, costCents("123,45"))

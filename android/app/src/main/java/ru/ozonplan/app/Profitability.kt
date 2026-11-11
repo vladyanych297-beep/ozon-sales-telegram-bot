@@ -41,11 +41,12 @@ internal fun costCents(text: String): Long? = runCatching {
     number.movePointRight(2).longValueExact()
 }.getOrNull()
 
-internal fun currency(cents: Long): String = BigDecimal.valueOf(cents, 2).setScale(2).toPlainString().replace('.', ',') + " ₽"
+internal fun currency(cents: Long): String = groupThousands(BigDecimal.valueOf(cents, 2).setScale(2).toPlainString()).replace('.', ',') + " ₽"
 
 internal data class ProfitRow(val id: String, val offer: String, val name: String,
     val ordered: Long, val redeemed: Long, val returned: Long,
-    val revenue: Long, val fees: Long, val cost: Long?) {
+    val revenue: Long, val fees: Long, val cost: Long?,
+    val buyerPaid: Long? = null, val points: Long? = null, val subsidy: Long? = null) {
     val profit: Long? get() = cost?.let { revenue - fees - it * (redeemed - returned) }
     val margin: String? get() = profit?.takeIf { revenue > 0 }?.let {
         BigDecimal.valueOf(it).multiply(BigDecimal(100)).divide(BigDecimal.valueOf(revenue), 2, RoundingMode.HALF_UP).toPlainString() + " %"
@@ -62,14 +63,17 @@ internal fun parseProfitRows(json: JSONObject): List<ProfitRow> {
         ProfitRow(r.getString("product_id"), r.getString("offer_id"), r.getString("name"),
             r.getLong("ordered"), r.getLong("redeemed"), r.getLong("returned"),
             r.getLong("revenue_cents"), r.getLong("fees_cents"),
-            if (r.isNull("cost_cents")) null else r.getLong("cost_cents"))
+            if (r.isNull("cost_cents")) null else r.getLong("cost_cents"),
+            if (r.has("buyer_paid_cents")) r.getLong("buyer_paid_cents") else null,
+            if (r.has("discount_points_cents")) r.getLong("discount_points_cents") else null,
+            if (r.has("ozon_subsidy_cents")) r.getLong("ozon_subsidy_cents") else null)
     }
 }
 
 internal data class ProfitState(val server: String = "", val from: String = LocalDate.now().minusDays(29).toString(),
     val to: String = LocalDate.now().toString(), val daysInput: String = "30", val report: String? = null,
     val loading: Boolean = false, val saving: Boolean = false, val error: String? = null,
-    val cached: Boolean = false) {
+    val cached: Boolean = false, val progress: String = "Получаем заказы и начисления…") {
     val valid: Boolean get() = runCatching {
         val a = LocalDate.parse(from); val b = LocalDate.parse(to)
         (daysInput.isEmpty() || daysInput.toIntOrNull() in 1..365) && !a.isAfter(b) && !b.isAfter(LocalDate.now()) && java.time.temporal.ChronoUnit.DAYS.between(a, b) < 365
@@ -114,14 +118,30 @@ internal class ProfitabilityViewModel(app: Application) : AndroidViewModel(app) 
         viewModelScope.launch {
             try {
                 val raw = withContext(Dispatchers.IO) {
-                    serverRequest(before.server, "/api/v1/profitability?date_from=${before.from}&date_to=${before.to}&refresh=true").also {
+                    val started = JSONObject(serverRequest(before.server, "/api/v1/profitability/jobs?date_from=${before.from}&date_to=${before.to}", body = JSONObject()))
+                    val jobId = started.getString("job_id")
+                    var completed: String? = null
+                    repeat(600) {
+                        if (completed == null) {
+                            kotlinx.coroutines.delay(3000)
+                            val status = JSONObject(serverRequest(before.server, "/api/v1/profitability/jobs/$jobId"))
+                            withContext(Dispatchers.Main) {
+                                if (mutable.value.server == before.server) mutable.value = mutable.value.copy(progress = status.optString("progress", "Загружаем отчёт…"))
+                            }
+                            when (status.getString("status")) {
+                                "complete" -> completed = status.getJSONObject("report").toString()
+                                "error" -> throw IllegalStateException(status.getString("error"))
+                            }
+                        }
+                    }
+                    (completed ?: throw IllegalStateException("Загрузка продолжается дольше ожидаемого. Повторите обновление позже.")).also {
                         parseProfitRows(JSONObject(it)); persist(before.server, it)
                     }
                 }
                 if (mutable.value.server == before.server) mutable.value = mutable.value.copy(report = raw, cached = false)
             } catch (e: Exception) {
                 if (mutable.value.server == before.server) mutable.value = mutable.value.copy(error =
-                    (e as? ApiException)?.message ?: "Не удалось загрузить отчёт. Сохранённые данные доступны ниже.", cached = true)
+                    e.message ?: "Не удалось загрузить отчёт. Сохранённые данные доступны ниже.", cached = true)
             } finally {
                 if (mutable.value.server == before.server) mutable.value = mutable.value.copy(loading = false)
             }
@@ -148,8 +168,8 @@ internal class ProfitabilityViewModel(app: Application) : AndroidViewModel(app) 
     }
 }
 
-internal fun totalProfit(rows: List<ProfitRow>): Long? =
-    if (rows.any { it.profit == null }) null else rows.sumOf { it.profit ?: 0L }
+internal fun totalProfit(rows: List<ProfitRow>, unboundExpenses: Long = 0L): Long =
+    rows.sumOf { it.profit ?: 0L } - unboundExpenses
 
 @Composable
 internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: ProfitabilityViewModel = viewModel()) {
@@ -166,7 +186,7 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
             item {
                 TextButton(onClick = onBack) { Text("← План поставок") }
                 Text("Рентабельность", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Заказы FBO + FBS за выбранный период. Начисления по этим заказам — на момент загрузки.", style = MaterialTheme.typography.bodySmall)
+                Text("Операции FBO + FBS по датам начислений и списаний. Доход включает оплату покупателей, баллы за скидки и доплаты Ozon.", style = MaterialTheme.typography.bodySmall)
                 OutlinedTextField(state.daysInput, model::days, label = { Text("Период, дней") },
                     supportingText = { Text("Отсчитывается назад от сегодня, включая сегодняшний день. Можно также задать даты вручную.") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true,
@@ -182,22 +202,35 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                 }
                 if (state.loading) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
-                    Text("Получаем заказы и начисления. Если Ozon ограничит запросы, сервер подождёт и продолжит загрузку.", style = MaterialTheme.typography.bodySmall)
+                    Text(state.progress + ". Если Ozon ограничит запросы, сервер подождёт и продолжит загрузку.", style = MaterialTheme.typography.bodySmall)
                 }
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (report != null) {
+                    if (report.optString("accounting_basis") != "accrual_date_v1") Text("Старый расчёт по датам заказов. Нажмите «Обновить» для нового отчёта.", color = MaterialTheme.colorScheme.error)
                     Text("Отчёт: ${report.getString("date_from")} — ${report.getString("date_to")}")
                     Text("Загружено: ${report.getString("fetched_at")}", style = MaterialTheme.typography.bodySmall)
                     if (state.cached || report.optBoolean("stale")) Text("Показан сохранённый отчёт. Свежесть данных не подтверждена.", color = MaterialTheme.colorScheme.error)
                     if (!report.isNull("warning")) Text(report.getString("warning"), style = MaterialTheme.typography.bodySmall)
-                    Text("Не учитываются удержания без точной связи с заказом и SKU. Исключено строк в полученных начислениях: ${report.optInt("excluded_accruals")}. Налоги и внешние расходы не включены.", style = MaterialTheme.typography.bodySmall)
-                    Text("Выкуп и возврат — по начислению и возврату комиссии за продажу. У свежих заказов финансовые данные ещё могут отсутствовать.", style = MaterialTheme.typography.bodySmall)
+                    Text("В карточках учитываются только удержания с точной связью с заказом и SKU. Исключено из карточек строк: ${report.optInt("excluded_accruals")}. Налоги и внешние расходы не включены.", style = MaterialTheme.typography.bodySmall)
+                    Text("Продажи и возвраты — по финансовым операциям периода, независимо от даты заказа. Возвратов может быть больше продаж.", style = MaterialTheme.typography.bodySmall)
                     Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text("Заработано за период", style = MaterialTheme.typography.titleMedium)
-                            Text(totalProfit(rows)?.let(::currency) ?: "Задайте себестоимость всех товаров",
+                            Text(currency(totalProfit(rows, if (report.optBoolean("expenses_complete")) report.getLong("unbound_expenses_cents") else 0L)),
                                 style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                            Text("Прибыль по всем товарам после удержаний Ozon и себестоимости. Налоги и внешние расходы не включены.",
+                            if (report.optBoolean("expenses_complete")) {
+                                Text("Прибыль товаров: ${currency(totalProfit(rows))}")
+                                Text("Общие расходы Ozon за период: ${currency(report.getLong("unbound_expenses_cents"))}", fontWeight = FontWeight.SemiBold)
+                                val expenses = report.getJSONArray("unbound_expenses")
+                                for (index in 0 until expenses.length()) {
+                                    val expense = expenses.getJSONObject(index)
+                                    Text("${expense.getString("name")}: ${currency(expense.getLong("amount_cents"))}", style = MaterialTheme.typography.bodySmall)
+                                }
+                                Text("Общие расходы вычтены полностью, включая товары без себестоимости. Период расходов — по дате начисления; возвраты расходов уменьшают сумму.", style = MaterialTheme.typography.bodySmall)
+                            } else {
+                                Text("Общие расходы ещё не загружены и не вычтены. Нажмите «Обновить».", color = MaterialTheme.colorScheme.error)
+                            }
+                            Text("Прибыль только по товарам с указанной себестоимостью. Учтено: ${rows.count { it.cost != null }} из ${rows.size}. Без себестоимости: ${rows.count { it.cost == null }}. Налоги и внешние расходы не включены.",
                                 style = MaterialTheme.typography.bodySmall)
                         }
                     }
@@ -209,8 +242,11 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(row.name, fontWeight = FontWeight.Bold)
                         Text(row.offer, style = MaterialTheme.typography.bodySmall)
-                        Text("Заказано: ${row.ordered} · Выкуплено: ${row.redeemed} · Возвращено: ${row.returned}")
+                        Text("Начислено продаж: ${formatQuantity(row.ordered.toLong())} · Выкуплено: ${formatQuantity(row.redeemed.toLong())} · Возвращено: ${formatQuantity(row.returned.toLong())}")
                         Text("Выручка с учётом возвратов: ${currency(row.revenue)}")
+                        row.buyerPaid?.let { Text("Оплата покупателей с возвратами: ${currency(it)}") }
+                        row.points?.let { Text("Баллы за скидки с возвратами: ${currency(it)}") }
+                        row.subsidy?.let { Text("Доплаты Ozon с возвратами: ${currency(it)}") }
                         Text("Удержания Ozon: ${currency(row.fees)}")
                         Text("Средние удержания на заказанную единицу: ${row.averageFee?.let(::currency) ?: "—"}")
                         TextButton(onClick = { editId = row.id; costText = row.cost?.let { BigDecimal.valueOf(it, 2).toPlainString() } ?: "" }, enabled = !state.saving && !state.loading) {
