@@ -659,8 +659,8 @@ def test_public_update_metadata_and_apk(tmp_path):
         info = http.get("/api/v1/update")
         assert info.status_code == 200
         assert info.json() == {
-            "version_code": 36,
-            "version_name": "0.8.0",
+            "version_code": 37,
+            "version_name": "0.8.1",
             "size_bytes": len(b"signed-apk-test"),
             "sha256": hashlib.sha256(b"signed-apk-test").hexdigest(),
         }

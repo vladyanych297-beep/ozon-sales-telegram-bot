@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ProfitabilityTest {
+    @Test fun minimumPriceUsesExactMeansAndCurrentRates() {
+        val b = org.json.JSONObject("""{"complete":true,"units":14,"fixed_cents":157848,"overhead_cents":13680,"overhead_units":41,"commission_rate":"0.47","acquiring_rate":"0.01"}""")
+        assertEquals(845L, minimumPriceRubles(12300, 20000, b))
+        assertEquals(460L, minimumPriceRubles(12300, 0, b))
+        assertNull(minimumPriceRubles(0, 20000, b))
+        assertNull(minimumPriceRubles(null, 20000, b))
+        b.put("complete", false)
+        assertNull(minimumPriceRubles(12300, 20000, b))
+    }
     @Test fun daysPeriodIncludesTodayAndHandlesMonthBoundaries() {
         val today = java.time.LocalDate.of(2026, 3, 1)
         assertEquals(today to today, profitabilityRange(1, today))

@@ -5,8 +5,8 @@ from ozon_forecast.version import APP_VERSION, VERSION_CODE
 
 
 def test_single_version_source():
-    assert APP_VERSION == "0.8.0"
-    assert VERSION_CODE == 36
+    assert APP_VERSION == "0.8.1"
+    assert VERSION_CODE == 37
     assert app.version == APP_VERSION
     gradle = Path("android/app/build.gradle.kts").read_text(encoding="utf-8")
     assert 'versionName = appVersion.getProperty("versionName")' in gradle

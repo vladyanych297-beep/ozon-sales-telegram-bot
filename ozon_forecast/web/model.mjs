@@ -28,6 +28,22 @@ export function parseCost(value) {
   const result = BigInt(rubles) * 100n + BigInt(fraction.padEnd(2, '0'));
   return result <= 100000000000n ? Number(result) : null;
 }
+export function minimumPrice(cost, target, basis) {
+  if (!integer(cost, 1, 100000000000) || !integer(target, 0, 100000000000) || basis?.complete !== true || !integer(basis.units, 1) || !integer(basis.overhead_units, 1) || !cents(basis.fixed_cents) || !cents(basis.overhead_cents)) return null;
+  const fraction = value => {
+    if (typeof value !== 'string' || !/^\d+(?:\.\d+)?$/.test(value)) return null;
+    const [whole, part=''] = value.split('.');
+    return [BigInt(whole+part), 10n**BigInt(part.length)];
+  };
+  const c=fraction(basis.commission_rate), a=fraction(basis.acquiring_rate);
+  if (!c || !a) return null;
+  const scale=c[1]*a[1], remaining=scale-c[0]*a[1]-a[0]*c[1];
+  if (remaining<=0n) return null;
+  const n=BigInt(basis.units), h=BigInt(basis.overhead_units);
+  const numerator=((BigInt(cost)+BigInt(target))*n*h+BigInt(basis.fixed_cents)*h+BigInt(basis.overhead_cents)*n)*scale;
+  const denominator=100n*n*h*remaining;
+  return numerator>0n ? (numerator+denominator-1n)/denominator : null;
+}
 export function rowProfit(row) {
   return row.cost_cents == null ? null : BigInt(row.revenue_cents) - BigInt(row.fees_cents) - BigInt(row.cost_cents) * BigInt(row.redeemed - row.returned);
 }

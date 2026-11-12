@@ -206,6 +206,7 @@ async def order_report(service, date_from, date_to, refresh, full_reload=False):
                     postings.append((scheme, items))
                 start = end + timedelta(days=1)
             orders, _metadata = quantities(postings)
+            pricing_entries = []
             if any(s not in by_sku for q in orders.values() for s in q):
                 raise OzonApiError("Ozon: SKU заказа отсутствует в каталоге")
             types = await service.finance_post("/v1/finance/accrual/types", {})
@@ -259,6 +260,11 @@ async def order_report(service, date_from, date_to, refresh, full_reload=False):
                         cursor = nxt
                     else:
                         raise OzonApiError("Ozon: превышен предел страниц начислений")
+                # Forward price uses only completed order/SKU cohorts. General
+                # CrossDock costs use the selected period, never later days.
+                pricing_entries.extend(e for e in entries if
+                    (_metadata.get(e.get('unit_number'), {}).get('status') == 'delivered')
+                    or (not e.get('unit_number') and day <= date_to and e.get('non_item_fee')))
                 values, count = cash_day(entries, orders)
                 extra = unbound_expenses(entries, names) if day <= date_to else {}
                 if not reusable:
@@ -316,7 +322,18 @@ async def order_report(service, date_from, date_to, refresh, full_reload=False):
                         **v,
                     )
                 )
+            from .minimum_price import load_price_bases, EXCLUDED_OFFERS
+            price_warning = None
+            try:
+                bases = await load_price_bases(service, products, pricing_entries, types)
+            except OzonApiError as exc:
+                bases = {}
+                price_warning = 'Минимальная цена недоступна: ' + str(exc)
+            for row in rows:
+                row['minimum_price_bases'] = bases.get(row['product_id'], [])
+                row['minimum_price_excluded'] = row['offer_id'] in EXCLUDED_OFFERS
             data = {
+                "minimum_price_warning": price_warning,
                 "accounting_basis": BASIS,
                 "date_from": str(date_from),
                 "date_to": str(date_to),

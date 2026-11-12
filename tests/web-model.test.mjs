@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,presetRange,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
+import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,minimumPrice,presetRange,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
 
 // Synthetic values only. Never use a seller's financial response as a fixture.
 const row = (extra={}) => ({product_id:'1',offer_id:'TEST-1',name:'Тестовый товар',ordered:10,redeemed:8,returned:2,revenue_cents:90000,fees_cents:10000,cost_cents:5000,average_fee_cents:1000,...extra});
@@ -90,4 +90,14 @@ test('order cohort report enforces quantities and uses created order count for a
   assert.equal(validateReport('profit',data),data);
   assert.throws(()=>validateReport('profit',report({accounting_basis:'order_cash_v2',rows:[row({redeemed:11})]})));
   assert.throws(()=>validateReport('profit',report({accounting_basis:'order_cash_v2',rows:[row({returned:9})]})));
+});
+
+test('minimum price uses current percentages and exact totals, zero costs unavailable', () => {
+  const b={complete:true,units:14,fixed_cents:157848,overhead_cents:13680,overhead_units:41,commission_rate:'0.47',acquiring_rate:'0.01'};
+  assert.equal(minimumPrice(12300,20000,b),845n);
+  assert.equal(minimumPrice(12300,0,b),460n);
+  assert.equal(minimumPrice(0,20000,b),null);
+  assert.equal(minimumPrice(null,20000,b),null);
+  assert.equal(minimumPrice(12300,20000,{...b,complete:false}),null);
+  assert.equal(minimumPrice(12300,20000,{...b,commission_rate:'1'}),null);
 });

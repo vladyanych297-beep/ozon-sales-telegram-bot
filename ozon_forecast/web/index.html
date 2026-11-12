@@ -63,6 +63,7 @@
           <div id="profit-loading" class="loading" role="status" hidden><span class="spinner"></span><span>Получаем заказы, начисления и общие расходы… При ограничениях Ozon сервер подождёт и продолжит.</span></div>
           <p id="profit-error" class="error" role="alert" hidden></p>
         </form>
+        <div class="panel"><label>Желаемая прибыль на штуку, ₽<input id="target-profit" type="number" min="0" max="1000000000" step="0.01" inputmode="decimal" value="200"></label><p class="hint">Минимальная цена продавца после его акций, до скидок Ozon. Себестоимость уже включает производство и налоги; упаковка, отказы и отключённые программы не добавляются. Основа — средняя фактическая логистика успешных продаж, прибыль на любом маршруте не гарантирована. Эквайринг — оценка по текущему API. Кросс-докинг поровну на проданную единицу FBO — допущение, не привязка к SKU. Цены в Ozon не меняются.</p></div>
         <div id="profit-report"></div>
         <div class="list-tools" id="profit-tools" hidden><label class="search-label"><span class="sr-only">Поиск по названию или артикулу</span><input type="search" id="profit-search" placeholder="Название или артикул" enterkeyhint="search"></label></div>
         <p id="profit-count" class="list-count"></p>

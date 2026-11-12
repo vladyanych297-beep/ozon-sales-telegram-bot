@@ -1,6 +1,6 @@
 /* Only the application shell is cached. API, costs, tokens and financial data
    never enter CacheStorage or a background fetch. */
-const VERSION = 'varanez-shell-v6';
+const VERSION = 'varanez-shell-v7';
 const ROOT = new URL('./', self.location.href).pathname;
 const FILES = ['', 'index.html', 'app.css', 'app.mjs', 'model.mjs', 'storage.mjs',
   'manifest.webmanifest', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
