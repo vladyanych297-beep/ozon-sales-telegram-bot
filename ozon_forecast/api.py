@@ -118,7 +118,7 @@ def create_app(service: ForecastService | None = None) -> FastAPI:
         return report
 
     @app.post("/api/v1/profitability/jobs")
-    async def start_profitability_job(request: Request, date_from: date, date_to: date):
+    async def start_profitability_job(request: Request, date_from: date, date_to: date, full_reload: bool = False):
         source = profitability_service(request)
         today = datetime.now(ZoneInfo(source.settings.timezone)).date()
         if date_from > date_to or date_to > today or (date_to - date_from).days >= 365:
@@ -127,18 +127,18 @@ def create_app(service: ForecastService | None = None) -> FastAPI:
         request.app.state.profit_jobs = jobs
         for job_id, job in jobs.items():
             if job["status"] == "running":
-                if job["period"] == (date_from, date_to):
+                if job["period"] == (date_from, date_to) and job.get("full_reload", False) == full_reload:
                     return {"job_id": job_id}
                 raise HTTPException(409, "Другой отчёт уже загружается. Дождитесь завершения.")
         # Keep only the most recent completed jobs. Financial reports remain in SQLite.
         while len(jobs) >= 10:
             del jobs[next(iter(jobs))]
         job_id = uuid.uuid4().hex
-        job = {"status": "running", "period": (date_from, date_to)}
+        job = {"status": "running", "period": (date_from, date_to), "full_reload": full_reload}
         jobs[job_id] = job
         async def run():
             try:
-                job["report"] = await source.report(date_from, date_to, True)
+                job["report"] = await source.report(date_from, date_to, True, full_reload=True) if full_reload else await source.report(date_from, date_to, True)
                 job["status"] = "complete"
             except (OzonApiError, ValueError) as exc:
                 job.update(status="error", error=str(exc))

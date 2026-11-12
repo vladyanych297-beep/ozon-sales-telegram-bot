@@ -109,7 +109,7 @@ internal class ProfitabilityViewModel(app: Application) : AndroidViewModel(app) 
         temp.writeText(raw, Charsets.UTF_8)
         java.nio.file.Files.move(temp.toPath(), target.toPath(), java.nio.file.StandardCopyOption.REPLACE_EXISTING)
     }
-    fun refresh() {
+    fun refresh(fullReload: Boolean = false) {
         val selected = mutable.value
         val range = selected.daysInput.toIntOrNull()?.takeIf { it in 1..365 }?.let { profitabilityRange(it) }
         val before = if (range == null) selected else selected.copy(from = range.first.toString(), to = range.second.toString())
@@ -118,7 +118,7 @@ internal class ProfitabilityViewModel(app: Application) : AndroidViewModel(app) 
         viewModelScope.launch {
             try {
                 val raw = withContext(Dispatchers.IO) {
-                    val started = JSONObject(serverRequest(before.server, "/api/v1/profitability/jobs?date_from=${before.from}&date_to=${before.to}", body = JSONObject()))
+                    val started = JSONObject(serverRequest(before.server, "/api/v1/profitability/jobs?date_from=${before.from}&date_to=${before.to}&full_reload=$fullReload", body = JSONObject()))
                     val jobId = started.getString("job_id")
                     var completed: String? = null
                     repeat(600) {
@@ -186,7 +186,7 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
             item {
                 TextButton(onClick = onBack) { Text("← План поставок") }
                 Text("Рентабельность", style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
-                Text("Операции FBO + FBS по датам начислений и списаний. Доход включает оплату покупателей, баллы за скидки и доплаты Ozon.", style = MaterialTheme.typography.bodySmall)
+                Text("Заказы FBO + FBS — по дате создания. Начисления по ним — до дня загрузки. Общие расходы — за выбранный период.", style = MaterialTheme.typography.bodySmall)
                 listOf(listOf("7", "14", "30"), listOf("60", "90")).forEach { periods ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         periods.forEach { days ->
@@ -214,22 +214,24 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                     OutlinedTextField(state.to, { model.dates(state.from, it) }, label = { Text("По дату") }, singleLine = true, modifier = Modifier.weight(1f), enabled = !state.loading)
                 }
                 if (!state.valid) Text("Выберите от 1 до 365 дней, не позднее сегодня", color = MaterialTheme.colorScheme.error)
-                Button(onClick = model::refresh, enabled = state.valid && !state.loading && !state.saving && server.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
+                Button(onClick = { model.refresh() }, enabled = state.valid && !state.loading && !state.saving && server.isNotBlank(), modifier = Modifier.fillMaxWidth().padding(top = 8.dp)) {
                     Text(if (state.loading) "Получаем заказы и начисления…" else "Обновить")
                 }
+                OutlinedButton(onClick = { model.refresh(true) }, enabled = state.valid && !state.loading && !state.saving, modifier = Modifier.fillMaxWidth()) { Text("Полная сверка") }
+                Text("Быстрое обновление проверяет последние 14 дней заново, старую историю использует до суток. Полная сверка получает все начисления заново.", style = MaterialTheme.typography.bodySmall)
                 if (state.loading) {
                     LinearProgressIndicator(Modifier.fillMaxWidth())
                     Text(state.progress + ". Если Ozon ограничит запросы, сервер подождёт и продолжит загрузку.", style = MaterialTheme.typography.bodySmall)
                 }
                 state.error?.let { Text(it, color = MaterialTheme.colorScheme.error) }
                 if (report != null) {
-                    if (report.optString("accounting_basis") != "accrual_date_v1") Text("Старый расчёт по датам заказов. Нажмите «Обновить» для нового отчёта.", color = MaterialTheme.colorScheme.error)
+                    if (report.optString("accounting_basis") != "order_cash_v2") Text("Сохранён отчёт с другим принципом расчёта. Нажмите «Обновить».", color = MaterialTheme.colorScheme.error)
                     Text("Отчёт: ${report.getString("date_from")} — ${report.getString("date_to")}")
                     Text("Загружено: ${report.getString("fetched_at")}", style = MaterialTheme.typography.bodySmall)
                     if (state.cached || report.optBoolean("stale")) Text("Показан сохранённый отчёт. Свежесть данных не подтверждена.", color = MaterialTheme.colorScheme.error)
                     if (!report.isNull("warning")) Text(report.getString("warning"), style = MaterialTheme.typography.bodySmall)
                     Text("В карточках учитываются только удержания с точной связью с заказом и SKU. Исключено из карточек строк: ${report.optInt("excluded_accruals")}. Налоги и внешние расходы не включены.", style = MaterialTheme.typography.bodySmall)
-                    Text("Продажи и возвраты — по финансовым операциям периода, независимо от даты заказа. Возвратов может быть больше продаж.", style = MaterialTheme.typography.bodySmall)
+                    Text("Выручка включает оплату покупателей и компенсации Ozon. Начисления после конца периода тоже учитываются, если относятся к выбранным заказам.", style = MaterialTheme.typography.bodySmall)
                     Card(Modifier.fillMaxWidth().padding(vertical = 8.dp)) {
                         Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                             Text("Заработано за период", style = MaterialTheme.typography.titleMedium)
@@ -259,10 +261,10 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                     Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(5.dp)) {
                         Text(row.name, fontWeight = FontWeight.Bold)
                         Text(row.offer, style = MaterialTheme.typography.bodySmall)
-                        Text("Начислено продаж: ${formatQuantity(row.ordered.toLong())} · Выкуплено: ${formatQuantity(row.redeemed.toLong())} · Возвращено: ${formatQuantity(row.returned.toLong())}")
+                        Text("Заказано: ${formatQuantity(row.ordered.toLong())} · Выкуплено: ${formatQuantity(row.redeemed.toLong())} · Возвращено: ${formatQuantity(row.returned.toLong())}")
                         Text("Выручка с учётом возвратов: ${currency(row.revenue)}")
                         row.buyerPaid?.let { Text("Оплата покупателей с возвратами: ${currency(it)}") }
-                        row.points?.let { Text("Баллы за скидки с возвратами: ${currency(it)}") }
+
                         row.subsidy?.let { Text("Доплаты Ozon с возвратами: ${currency(it)}") }
                         Text("Удержания Ozon: ${currency(row.fees)}")
                         Text("Средние удержания на заказанную единицу: ${row.averageFee?.let(::currency) ?: "—"}")

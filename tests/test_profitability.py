@@ -269,6 +269,7 @@ def test_daily_accrual_income_reconciles_without_double_counting():
 
 @pytest.mark.asyncio
 async def test_accrual_date_report_includes_components_and_reuses_days(tmp_path):
+    from ozon_forecast.accrual_income import accrual_report
     settings = ServerSettings("c", "k", snapshot_path=tmp_path / "forecast.json")
     client = AsyncMock()
     client.get_catalog.return_value = [Product("1", "offer", "name", frozenset({"10"}))]
@@ -277,15 +278,15 @@ async def test_accrual_date_report_includes_components_and_reuses_days(tmp_path)
     service = ProfitabilityService(settings, client)
     service.store.save(CostInput(product_id="1",cost_cents=10000))
     service.finance_post = AsyncMock(side_effect=[dict(accruals=[entry],last_id=""),dict(accruals=[],last_id="")])
-    result = await service.report(date(2026,1,1),date(2026,1,2),True)
+    result = await accrual_report(service, date(2026,1,1),date(2026,1,2),True)
     assert result["accounting_basis"] == "accrual_date_v1"
     assert result["rows"][0]["profit_cents"] == 30000
     assert result["rows"][0]["discount_points_cents"] == 19500
     client._get_fbo_postings.assert_not_awaited()
-    smaller = await service.report(date(2026,1,1),date(2026,1,1),True)
+    smaller = await accrual_report(service, date(2026,1,1),date(2026,1,1),True)
     assert smaller["rows"][0]["buyer_paid_cents"] == 30000
     assert service.finance_post.await_count == 2
-    assert await service.report(date(2025,1,1),date(2025,1,1),False) is None
+    assert await accrual_report(service, date(2025,1,1),date(2025,1,1),False) is None
 
 
 def test_accrual_refund_without_sale_in_period():

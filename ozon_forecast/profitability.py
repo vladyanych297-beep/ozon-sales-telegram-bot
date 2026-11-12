@@ -237,9 +237,9 @@ class ProfitabilityService:
             "stale": stale, "warning": warning,
         }
 
-    async def report(self, date_from: date, date_to: date, refresh: bool):
-        from .accrual_income import accrual_report
-        return await accrual_report(self, date_from, date_to, refresh)
+    async def report(self, date_from: date, date_to: date, refresh: bool, full_reload: bool = False):
+        from .order_income import order_report
+        return await order_report(self, date_from, date_to, refresh, full_reload)
 
     async def legacy_order_report(self, date_from: date, date_to: date, refresh: bool):
         from dataclasses import asdict

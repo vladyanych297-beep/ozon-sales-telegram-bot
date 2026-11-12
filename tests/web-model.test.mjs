@@ -84,3 +84,10 @@ test('quick periods include today and handle month/year/leap boundaries', () => 
   assert.deepEqual(presetRange('previous','2024-03-01'), {from:'2024-02-01',to:'2024-02-29'});
   assert.equal(presetRange('unknown','2026-01-03'), null);
 });
+
+test('order cohort report enforces quantities and uses created order count for averages', () => {
+  const data=report({accounting_basis:'order_cash_v2',accrual_date_to:'2026-01-03'});
+  assert.equal(validateReport('profit',data),data);
+  assert.throws(()=>validateReport('profit',report({accounting_basis:'order_cash_v2',rows:[row({redeemed:11})]})));
+  assert.throws(()=>validateReport('profit',report({accounting_basis:'order_cash_v2',rows:[row({returned:9})]})));
+});
