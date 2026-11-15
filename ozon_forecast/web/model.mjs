@@ -28,6 +28,9 @@ export function parseCost(value) {
   const result = BigInt(rubles) * 100n + BigInt(fraction.padEnd(2, '0'));
   return result <= 100000000000n ? Number(result) : null;
 }
+export function effectiveTarget(global, overrides, id) {
+  return Object.hasOwn(overrides, id) && integer(overrides[id], 0, 100000000000) ? overrides[id] : global;
+}
 export function minimumPrice(cost, target, basis) {
   if (!integer(cost, 1, 100000000000) || !integer(target, 0, 100000000000) || basis?.complete !== true || !integer(basis.units, 1) || !integer(basis.overhead_units, 1) || !cents(basis.fixed_cents) || !cents(basis.overhead_cents)) return null;
   const fraction = value => {

@@ -4,6 +4,15 @@ import org.junit.Assert.*
 import org.junit.Test
 
 class ProfitabilityTest {
+    @Test fun individualTargetOverridesGlobalUntilResetIncludingZero() {
+        assertEquals(20000L, effectiveTarget(20000, null))
+        assertEquals(35000L, effectiveTarget(20000, 35000))
+        assertEquals(35000L, effectiveTarget(50000, 35000))
+        assertEquals(0L, effectiveTarget(50000, 0))
+        assertEquals(50000L, effectiveTarget(50000, null))
+        assertEquals(35000L, effectiveTarget(null, 35000))
+        assertEquals(20000L, effectiveTarget(20000, -1))
+    }
     @Test fun minimumPriceUsesExactMeansAndCurrentRates() {
         val b = org.json.JSONObject("""{"complete":true,"units":14,"fixed_cents":157848,"overhead_cents":13680,"overhead_units":41,"commission_rate":"0.47","acquiring_rate":"0.01"}""")
         assertEquals(845L, minimumPriceRubles(12300, 20000, b))

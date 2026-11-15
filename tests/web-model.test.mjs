@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import vm from 'node:vm';
-import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,minimumPrice,presetRange,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
+import {quantity,money,supply,stockDays,sortedClusters,parseCost,rowProfit,margin,profitSummary,effectiveTarget,minimumPrice,presetRange,daysRange,todayInZone,validRange,validateReport} from '../ozon_forecast/web/model.mjs';
 
 // Synthetic values only. Never use a seller's financial response as a fixture.
 const row = (extra={}) => ({product_id:'1',offer_id:'TEST-1',name:'Тестовый товар',ordered:10,redeemed:8,returned:2,revenue_cents:90000,fees_cents:10000,cost_cents:5000,average_fee_cents:1000,...extra});
@@ -100,4 +100,16 @@ test('minimum price uses current percentages and exact totals, zero costs unavai
   assert.equal(minimumPrice(null,20000,b),null);
   assert.equal(minimumPrice(12300,20000,{...b,complete:false}),null);
   assert.equal(minimumPrice(12300,20000,{...b,commission_rate:'1'}),null);
+});
+test('individual targets preserve zero, ignore invalid values and reset to changing global', () => {
+  const saved=JSON.parse(JSON.stringify({'1':35000,'2':0}));
+  assert.equal(effectiveTarget(20000,saved,'1'),35000);
+  assert.equal(effectiveTarget(50000,saved,'1'),35000);
+  assert.equal(effectiveTarget(50000,saved,'2'),0);
+  assert.equal(effectiveTarget(50000,saved,'3'),50000);
+  assert.equal(effectiveTarget(null,saved,'1'),35000);
+  delete saved['1'];
+  assert.equal(effectiveTarget(50000,saved,'1'),50000);
+  assert.equal(effectiveTarget(20000,{'1':-1},'1'),20000);
+  assert.equal(effectiveTarget(20000,{'1':NaN},'1'),20000);
 });

@@ -1,4 +1,4 @@
-import {METRICS, quantity, money, supply, stockDays, sortedClusters, parseCost, rowProfit, margin, profitSummary, todayInZone, daysRange, validRange, validateReport, presetRange, minimumPrice} from './model.mjs';
+import {METRICS, quantity, money, supply, stockDays, sortedClusters, parseCost, rowProfit, margin, profitSummary, todayInZone, daysRange, validRange, validateReport, presetRange, minimumPrice, effectiveTarget} from './model.mjs';
 import {readReport, writeReport} from './storage.mjs';
 
 const $ = id => document.getElementById(id);
@@ -75,6 +75,38 @@ $('target-profit').addEventListener('input', () => {
   }
   renderProfitList();
 });
+let targetOverrides = Object.create(null), targetEditingId = null;
+try {
+  const saved = JSON.parse(localStorage.getItem('varanez-target-profits') ?? '{}');
+  if (saved && typeof saved === 'object' && !Array.isArray(saved)) {
+    for (const [id,value] of Object.entries(saved)) if (/^\d+$/.test(id) && Number.isSafeInteger(value) && value >= 0 && value <= 100000000000) targetOverrides[id] = value;
+  }
+} catch {}
+function persistTargets() {
+  try { localStorage.setItem('varanez-target-profits', JSON.stringify(targetOverrides)); }
+  catch { storageWarning('Индивидуальная прибыль изменена в этом окне, но не сохранена на устройстве.'); }
+}
+$('profit-list').addEventListener('click', event => {
+  const button=event.target.closest('[data-target]');
+  if (!button) return;
+  targetEditingId=button.dataset.target;
+  const row=states.profit.report?.rows.find(r=>r.product_id === targetEditingId);
+  if (!row) return;
+  $('target-product').textContent=`${row.name} · ${row.offer_id}`;
+  const value=effectiveTarget(parseCost($('target-profit').value),targetOverrides,row.product_id);
+  $('target-value').value=value === null ? '' : (value/100).toFixed(2);
+  message('target-error',''); $('target-dialog').showModal(); $('target-value').focus();
+});
+$('target-cancel').addEventListener('click',()=> $('target-dialog').close());
+$('target-reset').addEventListener('click',()=> {
+  delete targetOverrides[targetEditingId]; persistTargets(); $('target-dialog').close(); renderProfitList();
+});
+$('target-form').addEventListener('submit',event=> {
+  event.preventDefault();
+  const value=parseCost($('target-value').value);
+  if (value === null) {message('target-error','Введите сумму от 0 до 1 000 000 000 ₽, не более двух знаков после запятой.');return;}
+  targetOverrides[targetEditingId]=value; persistTargets(); $('target-dialog').close(); renderProfitList();
+});
 function minimumMarkup(row) {
   if (row.minimum_price_excluded) return '<p class="hint">Минимальная цена: исключено из расчёта</p>';
   const bases=row.minimum_price_bases ?? [], target=parseCost($('target-profit').value);
@@ -92,7 +124,7 @@ function renderProfitList() {
   $('profit-count').textContent = `Товары · ${quantity(rows.length)} из ${quantity(r.rows.length)}`;
   $('profit-list').innerHTML = rows.map(row => {
     const profit = rowProfit(row), threshold = row.cost_cents == null || row.average_fee_cents == null ? null : BigInt(row.cost_cents) + BigInt(row.average_fee_cents);
-    return `<article class="product profit-card"><h3>${escape(row.name)}</h3><p class="article">${escape(row.offer_id)}</p><dl class="metrics">${valueMetric('Заказано', quantity(row.ordered))}${valueMetric('Выкуплено', quantity(row.redeemed))}${valueMetric('Возвращено', quantity(row.returned))}${valueMetric('Выручка с возвратами', money(row.revenue_cents))}${valueMetric('Оплата покупателей', money(row.buyer_paid_cents))}${valueMetric('Доплаты Ozon', money(row.ozon_subsidy_cents))}${valueMetric('Удержания Ozon', money(row.fees_cents))}${valueMetric('Средние удержания / шт.', money(row.average_fee_cents))}</dl><button class="cost-button" data-cost="${row.product_id}"${states.profit.busy || savingCost ? ' disabled' : ''}><span>Себестоимость: <strong>${row.cost_cents == null ? 'не задана' : money(row.cost_cents)}</strong></span><span>Изменить ↗</span></button><p class="hint">Порог стоимости: <strong>${money(threshold)}</strong></p>${minimumMarkup(row)}<div class="result-line"><div><span>Прибыль</span><strong class="${profit == null ? '' : profit < 0n ? 'negative' : 'positive'}">${profit == null ? 'Задайте себестоимость' : money(profit)}</strong></div><div><span>Маржа</span><strong>${margin(row)}</strong></div></div></article>`;
+    return `<article class="product profit-card"><h3>${escape(row.name)}</h3><p class="article">${escape(row.offer_id)}</p><dl class="metrics">${valueMetric('Заказано', quantity(row.ordered))}${valueMetric('Выкуплено', quantity(row.redeemed))}${valueMetric('Возвращено', quantity(row.returned))}${valueMetric('Выручка с возвратами', money(row.revenue_cents))}${valueMetric('Оплата покупателей', money(row.buyer_paid_cents))}${valueMetric('Доплаты Ozon', money(row.ozon_subsidy_cents))}${valueMetric('Удержания Ozon', money(row.fees_cents))}${valueMetric('Средние удержания / шт.', money(row.average_fee_cents))}</dl><button class="cost-button" data-cost="${row.product_id}"${states.profit.busy || savingCost ? ' disabled' : ''}><span>Себестоимость: <strong>${row.cost_cents == null ? 'не задана' : money(row.cost_cents)}</strong></span><span>Изменить ↗</span></button><p class="hint">Порог стоимости: <strong>${money(threshold)}</strong></p><button class="cost-button" data-target="${row.product_id}"><span>Желаемая прибыль / шт.: <strong>${money(effectiveTarget(parseCost($('target-profit').value),targetOverrides,row.product_id))}</strong> · ${Object.hasOwn(targetOverrides,row.product_id) ? 'индивидуальная' : 'общая'}</span><span>Изменить ↗</span></button>${minimumMarkup(row)}<div class="result-line"><div><span>Прибыль</span><strong class="${profit == null ? '' : profit < 0n ? 'negative' : 'positive'}">${profit == null ? 'Задайте себестоимость' : money(profit)}</strong></div><div><span>Маржа</span><strong>${margin(row)}</strong></div></div></article>`;
   }).join('') || empty('Товаров не найдено', 'Измените название или артикул в поиске.');
 }
 function syncControls() {

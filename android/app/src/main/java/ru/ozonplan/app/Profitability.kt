@@ -43,6 +43,8 @@ internal fun costCents(text: String): Long? = runCatching {
 
 internal fun currency(cents: Long): String = groupThousands(BigDecimal.valueOf(cents, 2).setScale(2).toPlainString()).replace('.', ',') + " ₽"
 
+internal fun effectiveTarget(global: Long?, individual: Long?): Long? = individual?.takeIf { it in 0..100000000000L } ?: global
+
 internal fun minimumPriceRubles(cost: Long?, target: Long?, basis: JSONObject): Long? = runCatching {
     require(cost != null && cost > 0 && target != null && target >= 0 && basis.getBoolean("complete"))
     val n = basis.getLong("units").toBigDecimal()
@@ -196,6 +198,18 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
     var query by rememberSaveable { mutableStateOf("") }
     val preferences = model.getApplication<Application>().getSharedPreferences("minimum-price", 0)
     var targetProfit by rememberSaveable { mutableStateOf(preferences.getString("target", "200") ?: "200") }
+    var individualTargets by remember(server) { mutableStateOf(preferences.getString("targets:$server", "{}") ?: "{}") }
+    var targetEditId by rememberSaveable { mutableStateOf<String?>(null) }
+    var targetText by rememberSaveable { mutableStateOf("") }
+    val targetValues = runCatching { JSONObject(individualTargets) }.getOrElse { JSONObject() }
+    fun individualTarget(id: String): Long? = if (targetValues.has(id)) runCatching { targetValues.getLong(id) }.getOrNull() else null
+    fun saveIndividual(id: String, value: Long?) {
+        val updated = JSONObject(targetValues.toString())
+        if (value == null) updated.remove(id) else updated.put(id, value)
+        individualTargets = updated.toString()
+        preferences.edit().putString("targets:$server", individualTargets).apply()
+        targetEditId = null
+    }
     val report = state.report?.let { JSONObject(it) }
     val rows = report?.let(::parseProfitRows).orEmpty()
     Scaffold(bottomBar = { Text("© ESI.Company · ${BuildConfig.VERSION_NAME}", Modifier.navigationBarsPadding().padding(12.dp)) }) { padding ->
@@ -297,6 +311,13 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                             Text("Себестоимость: ${row.cost?.let(::currency) ?: "не задана"} · Изменить")
                         }
                         Text("Порог стоимости: ${row.costThreshold?.let(::currency) ?: "—"}", fontWeight = FontWeight.SemiBold)
+                        val chosenTarget = effectiveTarget(costCents(targetProfit), individualTarget(row.id))
+                        TextButton(onClick = {
+                            targetEditId = row.id
+                            targetText = chosenTarget?.let { BigDecimal.valueOf(it, 2).toPlainString() } ?: ""
+                        }) {
+                            Text("Желаемая прибыль / шт.: ${chosenTarget?.let(::currency) ?: "—"} · ${if (individualTarget(row.id) != null) "индивидуальная" else "общая"} · Изменить")
+                        }
                         val sourceRows = report?.getJSONArray("rows")
                         val priceRow = sourceRows?.let { source -> (0 until source.length()).map { source.getJSONObject(it) }.find { it.getString("product_id") == row.id } }
                         val bases = priceRow?.optJSONArray("minimum_price_bases")
@@ -306,7 +327,7 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
                             Text("Минимальная цена: Недостаточно данных")
                         } else for (i in 0 until bases.length()) {
                             val basis = bases.getJSONObject(i)
-                            val minimum = minimumPriceRubles(row.cost, costCents(targetProfit), basis)
+                            val minimum = minimumPriceRubles(row.cost, chosenTarget, basis)
                             Text("Минимальная цена ${basis.optString("scheme")}: ${minimum?.let { groupThousands(it.toString()) + " ₽" } ?: "Недостаточно данных"}", fontWeight = FontWeight.Bold)
                             Text("${basis.optLong("units")} успешных шт. · комиссия ${basis.optString("commission_rate").toBigDecimalOrNull()?.multiply(BigDecimal(100))}% · эквайринг ≈ ${basis.optString("acquiring_rate").toBigDecimalOrNull()?.multiply(BigDecimal(100))}%", style = MaterialTheme.typography.bodySmall)
                         }
@@ -317,6 +338,20 @@ internal fun ProfitabilityScreen(server: String, onBack: () -> Unit, model: Prof
             }
         }
     }
+    val targetRow = rows.find { it.id == targetEditId }
+    if (targetRow != null) AlertDialog(onDismissRequest = { targetEditId = null },
+        title = { Text("Прибыль на штуку") }, text = {
+            Column {
+                Text(targetRow.name)
+                Text("Индивидуальное значение заменяет общее только для этого товара. Сохраняется на этом устройстве.")
+                OutlinedTextField(targetText, { targetText = it }, label = { Text("Рубли") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true,
+                    isError = costCents(targetText) == null)
+                TextButton(onClick = { saveIndividual(targetRow.id, null) }) { Text("Использовать общее значение") }
+            }
+        }, confirmButton = {
+            TextButton(onClick = { costCents(targetText)?.let { saveIndividual(targetRow.id, it) } }, enabled = costCents(targetText) != null) { Text("Сохранить") }
+        }, dismissButton = { TextButton(onClick = { targetEditId = null }) { Text("Отмена") } })
     val editRow = rows.find { it.id == editId }
     if (editRow != null) AlertDialog(onDismissRequest = { if (!state.saving) editId = null },
         title = { Text("Себестоимость за единицу") }, text = {
